@@ -2,9 +2,9 @@
   "schema_version": 1,
   "updated_on": "2026-10-29",
   "workflow": "sequential_backend_first",
-  "active_phase": "P01",
-  "next_candidate": "P01",
-  "note": "Đã khắc phục xong các lỗi phát hiện trong P01-review.md (cập nhật script lint kiểm tra cú pháp 19 file, đồng bộ 100% mã băm SHA-256 manifest); chuyển trạng thái sang READY_FOR_REVIEW để tái nghiệm thu.",
+  "active_phase": null,
+  "next_candidate": "P02",
+  "note": "Phase P01 đã được nghiệm thu chính thức (ACCEPTED) bởi Independent Reviewer ngày 29/10/2026. Sẵn sàng cho Phase P02.",
   "gates": {
     "BE_READY": {
       "status": "CLOSED",
@@ -35,12 +35,12 @@
     },
     {
       "id": "P01",
-      "status": "READY_FOR_REVIEW",
+      "status": "ACCEPTED",
       "report": "docs/phase-reports/P01.md",
       "review": "docs/phase-reports/P01-review.md",
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-29",
+      "accepted_revision": "225338c1fc27f50df79c1d2655394754730abdf2 (docs/phase-reports/P01-manifest.sha256)"
     },
     {
       "id": "P02",
