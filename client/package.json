@@ -1,0 +1,11 @@
+{
+  "name": "client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Sport Booking Client - Placeholder until P15",
+  "scripts": {
+    "dev": "echo \"React client starts at P15 after BE_READY gate is ACCEPTED\" && exit 1",
+    "build": "echo \"React client starts at P15 after BE_READY gate is ACCEPTED\" && exit 1"
+  }
+}
+

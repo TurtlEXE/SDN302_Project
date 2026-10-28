@@ -1,0 +1,12 @@
+---
+description: Quy tắc toàn dự án về phạm vi phase, bằng chứng và nghiệm thu
+alwaysApply: true
+---
+
+# Làm việc theo phase
+
+Đọc và áp dụng `AGENTS.md` tại gốc dự án cùng `docs/guides/ai-workflow.md`.
+Đọc `docs/planning/phase-status.json` và đúng phase trong `docs/planning/development-plan.md` trước khi sửa.
+Chỉ làm phase được giao; agent triển khai bàn giao ở `READY_FOR_REVIEW`.
+Không tự nghiệm thu hoặc chuyển phase. Không xây frontend trước gate BE-READY đã được nghiệm thu.
+Không chép thêm một bản quy tắc nghiệp vụ vào file này; nguồn chính là các tài liệu gốc.

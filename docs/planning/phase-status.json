@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "updated_on": "2026-10-29",
+  "workflow": "sequential_backend_first",
+  "active_phase": "P01",
+  "next_candidate": "P01",
+  "note": "Đã khắc phục xong các lỗi phát hiện trong P01-review.md (cập nhật script lint kiểm tra cú pháp 19 file, đồng bộ 100% mã băm SHA-256 manifest); chuyển trạng thái sang READY_FOR_REVIEW để tái nghiệm thu.",
+  "gates": {
+    "BE_READY": {
+      "status": "CLOSED",
+      "phase": "P14",
+      "evidence": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    "RELEASE_READY": {
+      "status": "CLOSED",
+      "phase": "P20",
+      "evidence": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    }
+  },
+  "phases": [
+    {
+      "id": "P00",
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P00.md",
+      "review": "docs/phase-reports/P00-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-28",
+      "accepted_revision": "docs/phase-reports/P00-manifest.sha256"
+    },
+    {
+      "id": "P01",
+      "status": "READY_FOR_REVIEW",
+      "report": "docs/phase-reports/P01.md",
+      "review": "docs/phase-reports/P01-review.md",
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P02",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P03",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P04",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P05",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P06",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P07",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P08",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P09",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P10",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P11",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P12",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P13",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P14",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P15",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P16",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P17",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P18",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P19",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    },
+    {
+      "id": "P20",
+      "status": "NOT_STARTED",
+      "report": null,
+      "review": null,
+      "accepted_by": null,
+      "accepted_on": null,
+      "accepted_revision": null
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "sport-booking-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sport Booking Platform - Monorepo with Express backend and React frontend",
+  "type": "module",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "start": "npm --prefix server start",
+    "dev": "npm --prefix server run dev",
+    "worker": "npm --prefix server run worker",
+    "test": "npm --prefix server test",
+    "lint": "npm --prefix server run lint",
+    "check:phase": "node scripts/check-phase.js"
+  },
+  "keywords": [
+    "sport-booking",
+    "express",
+    "mongodb",
+    "react"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

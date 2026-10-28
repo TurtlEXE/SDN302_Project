@@ -1,0 +1,3118 @@
+openapi: 3.0.3
+info:
+  title: Sport Booking Platform API
+  description: |
+    API hợp đồng cho nền tảng đặt sân thể thao (sport-booking).
+    Kiến trúc: Node.js / Express backend theo layer, MongoDB Replica Set, React SPA frontend.
+    Xác thực: JWT Access Token (10 phút, lưu trong RAM) + Refresh Token ngẫu nhiên (lưu cookie HttpOnly, phiên tối đa 7 ngày).
+    Bảo mật mutation auth: Yêu cầu Origin allowlist + header X-CSRF-Guard: 1.
+    Thanh toán: VNPay 100% không thu hoa hồng, xử lý callback bất đồng bộ idempotent.
+  version: 1.0.0
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Môi trường phát triển cục bộ (Local Development)
+  - url: /api/v1
+    description: Môi trường triển khai chung Origin (Production / Staging qua Reverse Proxy)
+
+security: []
+
+paths:
+  # ============================================================================
+  # AUTHENTICATION
+  # ============================================================================
+  /auth/register:
+    post:
+      operationId: registerCustomer
+      tags: [Auth]
+      summary: Đăng ký tài khoản khách hàng (CUSTOMER)
+      description: Tạo tài khoản CUSTOMER chưa xác thực và gửi email liên kết xác thực (hạn 15 phút).
+      parameters:
+        - $ref: '#/components/parameters/CsrfGuardHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Đăng ký thành công, vui lòng kiểm tra email xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Email đã tồn tại trong hệ thống.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [Auth]
+      summary: Xác thực email tài khoản
+      description: Tiêu thụ token dùng 1 lần từ email để kích hoạt tài khoản khách hàng.
+      parameters:
+        - $ref: '#/components/parameters/CsrfGuardHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: Token ngẫu nhiên từ liên kết trong email
+      responses:
+        '200':
+          description: Xác thực email thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Token không hợp lệ hoặc đã hết hạn/đã dùng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      tags: [Auth]
+      summary: Gửi lại email xác thực tài khoản
+      description: Vô hiệu hóa token cũ và phát hành token xác thực mới (giới hạn 60s/lần).
+      parameters:
+        - $ref: '#/components/parameters/CsrfGuardHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Yêu cầu gửi lại email đã được tiếp nhận.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/activate-owner:
+    post:
+      operationId: activateOwner
+      tags: [Auth]
+      summary: Kích hoạt tài khoản chủ sân (OWNER)
+      description: Dành cho OWNER do Admin cấp; xác thực email và tự đặt mật khẩu đầu tiên.
+      parameters:
+        - $ref: '#/components/parameters/CsrfGuardHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateOwnerRequest'
+      responses:
+        '200':
+          description: Kích hoạt tài khoản chủ sân thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Token kích hoạt không hợp lệ hoặc mật khẩu không đúng định dạng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [Auth]
+      summary: Yêu cầu đặt lại mật khẩu qua email
+      description: Gửi liên kết đặt lại mật khẩu nếu email tồn tại (phản hồi chung để bảo mật danh tính).
+      parameters:
+        - $ref: '#/components/parameters/CsrfGuardHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Hướng dẫn đặt lại mật khẩu đã được gửi nếu email hợp lệ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [Auth]
+      summary: Đặt lại mật khẩu mới bằng token email
+      description: Đổi mật khẩu thành công sẽ vô hiệu hóa token và thu hồi toàn bộ phiên đăng nhập cũ.
+      parameters:
+        - $ref: '#/components/parameters/CsrfGuardHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Đặt lại mật khẩu thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [Auth]
+      summary: Đăng nhập hệ thống
+      description: Xác thực bằng email & mật khẩu; trả về Access Token trong JSON và đặt cookie refresh_token HttpOnly.
+      parameters:
+        - $ref: '#/components/parameters/CsrfGuardHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refresh_token=abc123hex...; Path=/api/v1/auth; HttpOnly; SameSite=Lax; Max-Age=604800
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Sai email hoặc mật khẩu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Tài khoản chưa xác thực/kích hoạt hoặc đã bị khóa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [Auth]
+      summary: Làm mới Access Token (Token Rotation)
+      description: Đọc cookie refresh_token, thực hiện rotation nguyên tử và cấp Access Token mới.
+      parameters:
+        - $ref: '#/components/parameters/CsrfGuardHeader'
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Cấp token mới thành công.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refresh_token=newHex...; Path=/api/v1/auth; HttpOnly; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Refresh token không hợp lệ, hết hạn hoặc phát hiện tái sử dụng (reuse).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [Auth]
+      summary: Đăng xuất phiên hiện tại
+      description: Thu hồi session gắn với cookie refresh_token hiện tại và xóa cookie trình duyệt.
+      parameters:
+        - $ref: '#/components/parameters/CsrfGuardHeader'
+      security:
+        - CookieAuth: []
+      responses:
+        '204':
+          description: Đăng xuất thành công. Xóa cookie.
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /auth/logout-all:
+    post:
+      operationId: logoutAll
+      tags: [Auth]
+      summary: Đăng xuất tất cả các phiên
+      description: Tăng tokenVersion và thu hồi toàn bộ session đang mở của người dùng.
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Đã thu hồi toàn bộ phiên.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [Auth]
+      summary: Đổi mật khẩu cho người dùng đã đăng nhập
+      description: Yêu cầu mật khẩu hiện tại và mật khẩu mới. Thu hồi toàn bộ phiên sau khi đổi.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Đổi mật khẩu thành công. Vui lòng đăng nhập lại.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # USERS / PROFILE
+  # ============================================================================
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [Users]
+      summary: Lấy thông tin hồ sơ người dùng hiện tại
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Thông tin hồ sơ cá nhân của người dùng.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UserDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      operationId: updateProfile
+      tags: [Users]
+      summary: Cập nhật thông tin cá nhân (họ tên, số điện thoại)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                phoneNumber:
+                  type: string
+      responses:
+        '200':
+          description: Cập nhật hồ sơ thành công.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UserDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # PUBLIC SPORTS & FACILITIES
+  # ============================================================================
+  /sports:
+    get:
+      operationId: listActiveSports
+      tags: [Sports]
+      summary: Danh sách môn thể thao đang hoạt động
+      responses:
+        '200':
+          description: Danh sách môn thể thao đang hoạt động.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SportDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /facilities:
+    get:
+      operationId: listFacilities
+      tags: [Facilities]
+      summary: Tìm kiếm và lọc danh sách cơ sở thể thao công khai
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: Tìm theo tên cơ sở hoặc địa chỉ
+        - name: sportId
+          in: query
+          schema:
+            type: string
+          description: Lọc theo môn thể thao
+        - name: province
+          in: query
+          schema:
+            type: string
+          description: Lọc theo tỉnh / thành phố
+        - name: minPrice
+          in: query
+          schema:
+            type: integer
+        - name: maxPrice
+          in: query
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [name_asc, name_desc, price_asc, price_desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Danh sách cơ sở thể thao thỏa điều kiện lọc.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFacilityResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /facilities/{id}:
+    get:
+      operationId: getFacilityById
+      tags: [Facilities]
+      summary: Chi tiết cơ sở thể thao, danh sách môn và sân con
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết cơ sở thể thao và danh sách sân con.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FacilityDetailDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /courts/{id}/schedule:
+    get:
+      operationId: getCourtSchedule
+      tags: [Schedules]
+      summary: Xem lịch trống theo sân con và ngày chơi
+      description: Trả về cấu hình bước giờ và tình trạng các ô (AVAILABLE, HOLD, BOOKED, BLOCKED, PAST).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID sân con (Court ID)
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+            example: '2026-11-05'
+          description: Ngày chơi định dạng YYYY-MM-DD (Asia/Ho_Chi_Minh)
+      responses:
+        '200':
+          description: Lưới lịch ô giờ và trạng thái chi tiết của sân.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/CourtScheduleDTO'
+        '400':
+          description: Ngày không hợp lệ hoặc quá 30 ngày.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # CUSTOMER BOOKING REQUESTS & BOOKINGS
+  # ============================================================================
+  /booking-requests:
+    post:
+      operationId: createBookingRequest
+      tags: [Bookings]
+      summary: Tạo yêu cầu đặt sân và giữ chỗ 10 phút
+      description: |
+        Nhận danh sách ô giờ, kiểm tra xung đột nguyên tử trên CourtDaySchedule,
+        gộp các ô liên tiếp thành các Booking dạng khoảng và tạo PaymentOrder 100% tổng tiền.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
+      responses:
+        '201':
+          description: Tạo yêu cầu đặt thành công, đang giữ chỗ trong 10 phút.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/BookingRequestCreatedDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Trùng lịch (SCHEDULE_CONFLICT) hoặc cấu hình giá/giờ đã thay đổi (CONFIG_VERSION_MISMATCH).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /booking-requests/{id}:
+    get:
+      operationId: getBookingRequestById
+      tags: [Bookings]
+      summary: Chi tiết yêu cầu đặt sân và trạng thái thanh toán
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết yêu cầu đặt sân và các Booking con.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/BookingRequestDetailDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /booking-requests/{id}/cancel:
+    post:
+      operationId: cancelBookingRequest
+      tags: [Bookings]
+      summary: Khách hàng tự hủy yêu cầu đặt khi còn PENDING_PAYMENT
+      description: Hủy toàn bộ BookingRequest và các Booking con, đóng PaymentOrder và nhả lịch giữ.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  example: Đổi kế hoạch cá nhân
+      responses:
+        '200':
+          description: Đã hủy yêu cầu đặt và giải phóng lịch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Đơn đã thanh toán hoặc đã hết hạn, không thể tự hủy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /bookings:
+    get:
+      operationId: listMyBookings
+      tags: [Bookings]
+      summary: Danh sách đơn đặt sân của khách hàng hiện tại
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [UPCOMING, HISTORY, PENDING_PAYMENT, CONFIRMED, COMPLETED, CANCELLED]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Danh sách đơn đặt sân của người dùng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBookingResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /bookings/{id}:
+    get:
+      operationId: getBookingById
+      tags: [Bookings]
+      summary: Chi tiết đơn đặt sân của khách hàng
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin chi tiết một đơn đặt sân.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/BookingDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # PAYMENTS & VNPAY GATEWAY
+  # ============================================================================
+  /payments/create-url:
+    post:
+      operationId: createPaymentUrl
+      tags: [Payments]
+      summary: Phát hành URL thanh toán VNPay cho PaymentOrder còn hạn
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paymentOrderId]
+              properties:
+                paymentOrderId:
+                  type: string
+      responses:
+        '200':
+          description: URL thanh toán VNPay được phát hành thành công.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      paymentUrl:
+                        type: string
+                        example: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_Amount=...
+                      expiresAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Đơn đã hết hạn thanh toán hoặc đã đóng.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /payments/vnpay-return:
+    get:
+      operationId: handleVNPayReturn
+      tags: [Payments]
+      summary: Xử lý khách hàng quay về từ cổng thanh toán VNPay
+      description: Endpoint công khai; xác minh chữ ký và hiển thị trạng thái giao dịch đã lưu tại server.
+      parameters:
+        - name: vnp_TxnRef
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_Amount
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_ResponseCode
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_SecureHash
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trả về trạng thái xác minh giao dịch cho giao diện client.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [CONFIRMED, FAILED, EXPIRED, REVIEW]
+                      bookingRequestId:
+                        type: string
+                      message:
+                        type: string
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /payments/vnpay-ipn:
+    get:
+      operationId: handleVNPayIpn
+      tags: [Payments]
+      summary: Nhận thông báo kết quả thanh toán từ server VNPay (IPN)
+      description: |
+        Server-to-server webhook từ VNPay. Không yêu cầu JWT hay Cookie.
+        Xác minh chữ ký HMAC-SHA512, đối chiếu số tiền, cập nhật trạng thái đơn nguyên tử và outbox email.
+      parameters:
+        - name: vnp_TxnRef
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_Amount
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_TransactionNo
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_ResponseCode
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_TransactionStatus
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: vnp_SecureHash
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Phản hồi chuẩn theo đặc tả VNPay IPN.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  RspCode:
+                    type: string
+                    example: '00'
+                  Message:
+                    type: string
+                    example: Confirm Success
+        '400':
+          description: Chữ ký không hợp lệ hoặc dữ liệu tham số thiếu.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  RspCode:
+                    type: string
+                    example: '97'
+                  Message:
+                    type: string
+                    example: Invalid Signature
+
+  /payments/guest-order/{paymentOrderId}:
+    get:
+      operationId: getGuestPaymentOrder
+      tags: [Payments]
+      summary: Khách ngoài xem đơn và lấy link VNPay qua mã bí mật
+      parameters:
+        - name: paymentOrderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: accessCode
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Mã truy cập ngẫu nhiên bí mật gắn với đơn owner tạo hộ
+      responses:
+        '200':
+          description: Thông tin thanh toán cho khách hàng không có tài khoản.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/GuestPaymentOrderDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          description: Sai mã truy cập bí mật.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # OWNER MANAGEMENT ENDPOINTS
+  # ============================================================================
+  /owner/facilities:
+    get:
+      operationId: listOwnerFacilities
+      tags: [Owner Facilities]
+      summary: Danh sách cơ sở thuộc sở hữu của chủ sân
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Danh sách các cơ sở thuộc sở hữu của chủ sân.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FacilityDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      operationId: createOwnerFacility
+      tags: [Owner Facilities]
+      summary: Tạo mới cơ sở thể thao (trạng thái DRAFT)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFacilityRequest'
+      responses:
+        '201':
+          description: Tạo cơ sở mới thành công ở trạng thái DRAFT.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FacilityDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /owner/facilities/{id}:
+    get:
+      operationId: getOwnerFacilityById
+      tags: [Owner Facilities]
+      summary: Chi tiết cơ sở của chủ sân
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết cơ sở bao gồm danh sách ảnh, nhóm môn và sân con.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FacilityDetailDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      operationId: updateOwnerFacility
+      tags: [Owner Facilities]
+      summary: Cập nhật thông tin, công khai (PUBLISHED) hoặc tạm dừng (PAUSED) cơ sở
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFacilityRequest'
+      responses:
+        '200':
+          description: Cập nhật thông tin cơ sở thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /owner/facilities/{id}/images:
+    post:
+      operationId: uploadFacilityImage
+      tags: [Owner Facilities]
+      summary: Tải ảnh cơ sở lên (tối đa 10 ảnh, JPG/PNG/WebP <= 5MB)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                isCover:
+                  type: boolean
+      responses:
+        '201':
+          description: Tải ảnh cơ sở lên thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /owner/facilities/{id}/images/{imageId}:
+    delete:
+      operationId: deleteFacilityImage
+      tags: [Owner Facilities]
+      summary: Xóa một ảnh của cơ sở
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Đã xóa ảnh.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /owner/facilities/{id}/images/{imageId}/set-cover:
+    patch:
+      operationId: setCoverImage
+      tags: [Owner Facilities]
+      summary: Đặt ảnh đại diện cho cơ sở
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Đã thiết lập ảnh đại diện mới cho cơ sở.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /owner/facilities/{id}/sports:
+    get:
+      operationId: listFacilitySports
+      tags: [Owner Facilities]
+      summary: Danh sách nhóm môn và bước giờ tại cơ sở
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách các môn thể thao và bước giờ cấu hình tại cơ sở.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FacilitySportDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      operationId: addFacilitySport
+      tags: [Owner Facilities]
+      summary: Thêm môn thể thao vào cơ sở với bước giờ (30, 60, 90 phút)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sportId, slotStepMinutes]
+              properties:
+                sportId:
+                  type: string
+                slotStepMinutes:
+                  type: integer
+                  enum: [30, 60, 90]
+      responses:
+        '201':
+          description: Thêm môn thể thao vào cơ sở thành công.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FacilitySportDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /owner/facilities/{id}/sports/{facilitySportId}:
+    patch:
+      operationId: updateFacilitySportStep
+      tags: [Owner Facilities]
+      summary: Cập nhật bước giờ của môn tại cơ sở
+      description: Bị từ chối nếu còn booking đang giữ hoặc confirmed chưa kết thúc.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: facilitySportId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slotStepMinutes]
+              properties:
+                slotStepMinutes:
+                  type: integer
+                  enum: [30, 60, 90]
+      responses:
+        '200':
+          description: Cập nhật bước giờ thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Còn đơn đặt hoặc lịch khóa cản trở đổi bước giờ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /owner/courts:
+    get:
+      operationId: listOwnerCourts
+      tags: [Owner Courts]
+      summary: Danh sách sân con thuộc quản lý của chủ sân
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: facilityId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách sân con.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CourtDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      operationId: createOwnerCourt
+      tags: [Owner Courts]
+      summary: Tạo mới sân con thuộc một FacilitySport
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCourtRequest'
+      responses:
+        '201':
+          description: Tạo sân con mới thành công.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/CourtDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /owner/courts/{id}:
+    patch:
+      operationId: updateOwnerCourt
+      tags: [Owner Courts]
+      summary: Cập nhật tên sân, giá thuê hoặc bật/tắt nhận đặt
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                pricePerHourVnd:
+                  type: integer
+                isActive:
+                  type: boolean
+      responses:
+        '200':
+          description: Cập nhật sân con thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /owner/court-blocks:
+    post:
+      operationId: createCourtBlock
+      tags: [Owner Schedules]
+      summary: Tạo lịch khóa sân bảo trì/đột xuất (gộp khoảng liền nhau)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCourtBlockRequest'
+      responses:
+        '201':
+          description: Tạo lịch khóa sân thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Khung giờ khóa bị trùng với đơn đang giữ chỗ hoặc đã xác nhận.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /owner/court-blocks/{id}:
+    delete:
+      operationId: deleteCourtBlock
+      tags: [Owner Schedules]
+      summary: Mở lại khung giờ đã khóa
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Đã mở khóa lịch.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /owner/bookings/on-behalf:
+    post:
+      operationId: createOnBehalfBooking
+      tags: [Owner Bookings]
+      summary: Chủ sân tạo đơn đặt hộ khách ngoài (thu qua VNPay)
+      description: Dùng cùng cơ sở chống trùng lịch và hạn giữ chỗ 10 phút; trả về link thanh toán có access code bí mật.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOnBehalfBookingRequest'
+      responses:
+        '201':
+          description: Tạo đơn đặt hộ thành công, trả về link thanh toán cho khách.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/OnBehalfBookingCreatedDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Trùng lịch với đơn khác.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /owner/bookings:
+    get:
+      operationId: listOwnerBookings
+      tags: [Owner Bookings]
+      summary: Danh sách đơn đặt sân tại các cơ sở của chủ sân
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: facilityId
+          in: query
+          schema:
+            type: string
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Danh sách đơn đặt sân thuộc cơ sở của chủ sân.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBookingResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /owner/bookings/{id}/complete:
+    post:
+      operationId: completeBooking
+      tags: [Owner Bookings]
+      summary: Xác nhận buổi chơi đã phục vụ hoàn tất (sau endTime)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Đã xác nhận phục vụ hoàn tất buổi chơi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Chưa đến endTime hoặc đơn chưa được thanh toán thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /owner/bookings/{id}/no-show:
+    post:
+      operationId: markNoShowBooking
+      tags: [Owner Bookings]
+      summary: Đánh dấu khách không đến (sau endTime)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Đã ghi nhận khách không đến. Tiền thanh toán không tự hoàn.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /owner/dashboard:
+    get:
+      operationId: getOwnerDashboard
+      tags: [Owner Bookings]
+      summary: Thống kê số liệu đơn và doanh thu cho chủ sân
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Thống kê doanh thu và số lượng đơn cho chủ sân.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/OwnerDashboardDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================================
+  # ADMIN MANAGEMENT ENDPOINTS
+  # ============================================================================
+  /admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      tags: [Admin Users]
+      summary: Tổng quan số liệu vận hành hệ thống
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Dữ liệu thống kê tổng thể toàn hệ thống.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/AdminDashboardDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags: [Admin Users]
+      summary: Quản lý danh sách tài khoản người dùng
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [CUSTOMER, OWNER, ADMIN]
+        - name: isLocked
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Danh sách người dùng thỏa điều kiện lọc.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/owners:
+    post:
+      operationId: provisionOwner
+      tags: [Admin Users]
+      summary: Cấp tài khoản chủ sân mới (gửi email kích hoạt 24h)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionOwnerRequest'
+      responses:
+        '201':
+          description: Cấp tài khoản chủ sân thành công, email kích hoạt đã được gửi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Email đã tồn tại.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/users/{id}/resend-invitation:
+    post:
+      operationId: resendOwnerInvitation
+      tags: [Admin Users]
+      summary: Gửi lại email mời kích hoạt cho chủ sân chưa kích hoạt
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Đã gửi lại email mời kích hoạt cho chủ sân.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{id}/lock:
+    patch:
+      operationId: lockUser
+      tags: [Admin Users]
+      summary: Khóa tài khoản người dùng kèm lý do bắt buộc
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Đã khóa tài khoản thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{id}/unlock:
+    patch:
+      operationId: unlockUser
+      tags: [Admin Users]
+      summary: Mở khóa tài khoản người dùng
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Đã mở khóa tài khoản thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/sports:
+    post:
+      operationId: createSport
+      tags: [Admin Sports]
+      summary: Thêm mới môn thể thao vào danh mục
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Thêm môn thể thao mới thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Tên môn thể thao đã tồn tại.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/sports/{id}:
+    patch:
+      operationId: updateSport
+      tags: [Admin Sports]
+      summary: Cập nhật tên, mô tả hoặc bật/tắt hoạt động của môn
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                isActive:
+                  type: boolean
+      responses:
+        '200':
+          description: Cập nhật môn thể thao thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/facilities:
+    get:
+      operationId: listAllFacilities
+      tags: [Admin Facilities]
+      summary: Quản lý toàn bộ cơ sở thể thao trong hệ thống
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Danh sách cơ sở thể thao quản lý bởi Admin.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFacilityResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/facilities/{id}/lock:
+    patch:
+      operationId: lockFacility
+      tags: [Admin Facilities]
+      summary: Admin khóa cơ sở thể thao kèm lý do
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Đã khóa cơ sở thể thao thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/facilities/{id}/unlock:
+    patch:
+      operationId: unlockFacility
+      tags: [Admin Facilities]
+      summary: Admin gỡ khóa cơ sở thể thao (không tự bật nếu owner để PAUSED)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Đã mở khóa cơ sở thể thao thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/bookings:
+    get:
+      operationId: listAllBookings
+      tags: [Admin Bookings]
+      summary: Tra cứu và hỗ trợ đơn đặt sân toàn hệ thống
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: bookingCode
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Danh sách đơn đặt sân trên toàn hệ thống.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBookingResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/bookings/{id}/cancel-and-refund:
+    post:
+      operationId: cancelAndRefundBooking
+      tags: [Admin Bookings]
+      summary: Admin hủy hỗ trợ đơn đã thanh toán (do cơ sở không phục vụ được)
+      description: Chuyển booking sang CANCELLED/REFUND_PENDING, giải phóng lịch và tạo RefundCase.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  example: Sân bị hư hại do thời tiết bão lũ
+      responses:
+        '200':
+          description: Hủy đơn hỗ trợ và tạo hồ sơ hoàn tiền thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/refunds:
+    get:
+      operationId: listRefundCases
+      tags: [Admin Payments & Refunds]
+      summary: Danh sách hồ sơ hoàn tiền cần xử lý
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, REFUNDED]
+      responses:
+        '200':
+          description: Danh sách hồ sơ hoàn tiền cần xử lý.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RefundCaseDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/refunds/{id}/record-manual-refund:
+    post:
+      operationId: recordManualRefund
+      tags: [Admin Payments & Refunds]
+      summary: Ghi nhận bằng chứng Admin đã hoàn tiền thành công bên ngoài
+      description: Cập nhật mã tham chiếu và hình ảnh ủy nhiệm chi; chuyển trạng thái sang REFUNDED.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proofReference]
+              properties:
+                proofReference:
+                  type: string
+                  example: VCB-FT20261102987654
+                proofImageUrl:
+                  type: string
+      responses:
+        '200':
+          description: Đã ghi nhận bằng chứng chuyển tiền hoàn thành công.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/email-outbox:
+    get:
+      operationId: listEmailOutbox
+      tags: [Admin Email Outbox]
+      summary: Theo dõi các email lỗi trong hàng đợi
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, SENT, FAILED]
+      responses:
+        '200':
+          description: Danh sách email trong hàng đợi outbox.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EmailOutboxDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/email-outbox/{id}/retry:
+    post:
+      operationId: retryEmailOutbox
+      tags: [Admin Email Outbox]
+      summary: Kích hoạt gửi lại email lỗi
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Đã kích hoạt lại tác vụ gửi email.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/action-logs:
+    get:
+      operationId: listActionLogs
+      tags: [Admin Action Logs]
+      summary: Xem nhật ký kiểm toán hệ thống
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: targetType
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Danh sách nhật ký kiểm toán hệ thống.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedActionLogResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+# ==============================================================================
+# COMPONENTS (SCHEMAS, RESPONSES, PARAMETERS, SECURITY SCHEMES)
+# ==============================================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access Token (10 phút) lưu trong RAM của client, truyền qua header Authorization.
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: Refresh Token luân phiên nguyên tử trong cookie HttpOnly.
+
+  parameters:
+    CsrfGuardHeader:
+      name: X-CSRF-Guard
+      in: header
+      required: true
+      schema:
+        type: string
+        enum: ['1']
+      description: Custom header bảo vệ CSRF bắt buộc cho mutation POST auth
+
+  responses:
+    Unauthorized:
+      description: Chưa xác thực hoặc Access Token không hợp lệ.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Không có quyền truy cập tài nguyên.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Không tìm thấy tài nguyên.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Dữ liệu đầu vào không hợp lệ.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimitError:
+      description: Vượt quá giới hạn tần suất gửi request (429 Too Many Requests).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ErrorResponse:
+      description: Lỗi phản hồi tiêu chuẩn.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Thao tác thực hiện thành công.
+
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - UNAUTHORIZED
+                - ACCESS_TOKEN_EXPIRED
+                - SESSION_REVOKED
+                - ACCOUNT_LOCKED
+                - ACCOUNT_NOT_VERIFIED
+                - ACCOUNT_NOT_ACTIVATED
+                - FORBIDDEN
+                - NOT_FOUND
+                - VALIDATION_ERROR
+                - SCHEDULE_CONFLICT
+                - CONFIG_VERSION_MISMATCH
+                - HOLD_EXPIRED
+                - PAYMENT_FAILED
+                - INVALID_SIGNATURE
+                - CSRF_GUARD_TRIGGERED
+                - RATE_LIMIT_EXCEEDED
+                - INTERNAL_SERVER_ERROR
+              example: SCHEDULE_CONFLICT
+            message:
+              type: string
+              example: Khung giờ đã chọn đã có người giữ chỗ hoặc đặt trước.
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+
+    RegisterRequest:
+      type: object
+      required: [email, password, fullName, phoneNumber]
+      properties:
+        email:
+          type: string
+          format: email
+          example: khachhang@example.com
+        password:
+          type: string
+          minLength: 8
+          example: Matkhau@123
+        fullName:
+          type: string
+          example: Nguyễn Văn A
+        phoneNumber:
+          type: string
+          example: '0901234567'
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: khachhang@example.com
+        password:
+          type: string
+          example: Matkhau@123
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+            expiresInSeconds:
+              type: integer
+              example: 600
+            user:
+              $ref: '#/components/schemas/UserDTO'
+
+    TokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            expiresInSeconds:
+              type: integer
+              example: 600
+
+    ActivateOwnerRequest:
+      type: object
+      required: [token, password]
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          minLength: 8
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+
+    ChangePasswordRequest:
+      type: object
+      required: [oldPassword, newPassword]
+      properties:
+        oldPassword:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+
+    UserDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        fullName:
+          type: string
+        phoneNumber:
+          type: string
+        role:
+          type: string
+          enum: [CUSTOMER, OWNER, ADMIN]
+        isLocked:
+          type: boolean
+        emailVerifiedAt:
+          type: string
+          format: date-time
+        activatedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    SportDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        isActive:
+          type: boolean
+
+    FacilityDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        ownerId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        address:
+          type: string
+        province:
+          type: string
+        phoneNumber:
+          type: string
+        openTime:
+          type: string
+          example: '06:00'
+        closeTime:
+          type: string
+          example: '22:00'
+        minPricePerHour:
+          type: integer
+          example: 120000
+        coverImageUrl:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED, PAUSED]
+
+    FacilityDetailDTO:
+      allOf:
+        - $ref: '#/components/schemas/FacilityDTO'
+        - type: object
+          properties:
+            images:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  url:
+                    type: string
+                  isCover:
+                    type: boolean
+            facilitySports:
+              type: array
+              items:
+                $ref: '#/components/schemas/FacilitySportDTO'
+            courts:
+              type: array
+              items:
+                $ref: '#/components/schemas/CourtDTO'
+
+    FacilitySportDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        facilityId:
+          type: string
+        sportId:
+          type: string
+        sportName:
+          type: string
+        slotStepMinutes:
+          type: integer
+          enum: [30, 60, 90]
+        configVersion:
+          type: integer
+
+    CourtDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        facilityId:
+          type: string
+        facilitySportId:
+          type: string
+        sportId:
+          type: string
+        sportName:
+          type: string
+        name:
+          type: string
+          example: Sân cầu lông số 1
+        description:
+          type: string
+        pricePerHourVnd:
+          type: integer
+          example: 120000
+        slotStepMinutes:
+          type: integer
+          example: 30
+        isActive:
+          type: boolean
+
+    CourtScheduleDTO:
+      type: object
+      properties:
+        courtId:
+          type: string
+        courtName:
+          type: string
+        bookingDate:
+          type: string
+          example: '2026-11-05'
+        openTime:
+          type: string
+          example: '06:00'
+        closeTime:
+          type: string
+          example: '22:00'
+        slotStepMinutes:
+          type: integer
+          example: 30
+        pricePerHourVnd:
+          type: integer
+          example: 120000
+        configVersion:
+          type: integer
+        slots:
+          type: array
+          items:
+            type: object
+            properties:
+              startTime:
+                type: string
+                example: '06:00'
+              endTime:
+                type: string
+                example: '06:30'
+              status:
+                type: string
+                enum: [AVAILABLE, HOLD, BOOKED, BLOCKED, PAST]
+
+    CreateBookingRequest:
+      type: object
+      required: [courtId, bookingDate, configVersion, selectedSlots, contactName, contactPhone, idempotencyKey]
+      properties:
+        courtId:
+          type: string
+        bookingDate:
+          type: string
+          example: '2026-11-05'
+        configVersion:
+          type: integer
+          example: 1
+        selectedSlots:
+          type: array
+          description: Danh sách các ô giờ được chọn (sẽ được tự động gộp thành các khoảng liên tục)
+          items:
+            type: object
+            required: [startTime, endTime]
+            properties:
+              startTime:
+                type: string
+                example: '06:00'
+              endTime:
+                type: string
+                example: '06:30'
+        contactName:
+          type: string
+          example: Nguyễn Văn A
+        contactPhone:
+          type: string
+          example: '0901234567'
+        idempotencyKey:
+          type: string
+          example: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+
+    BookingRequestCreatedDTO:
+      type: object
+      properties:
+        bookingRequestId:
+          type: string
+        requestNumber:
+          type: string
+          example: BR20261101-ABCD
+        totalAmountVnd:
+          type: integer
+          example: 180000
+        holdExpiresAt:
+          type: string
+          format: date-time
+        bookings:
+          type: array
+          items:
+            type: object
+            properties:
+              bookingId:
+                type: string
+              bookingCode:
+                type: string
+              startTime:
+                type: string
+              endTime:
+                type: string
+              durationMinutes:
+                type: integer
+              totalPriceVnd:
+                type: integer
+        paymentOrder:
+          type: object
+          properties:
+            paymentOrderId:
+              type: string
+            vnpayTxnRef:
+              type: string
+            amountVnd:
+              type: integer
+            paymentUrl:
+              type: string
+
+    BookingRequestDetailDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        requestNumber:
+          type: string
+        courtId:
+          type: string
+        bookingDate:
+          type: string
+        totalAmountVnd:
+          type: integer
+        holdExpiresAt:
+          type: string
+          format: date-time
+        paymentStatus:
+          type: string
+        bookings:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingDTO'
+
+    BookingDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        bookingCode:
+          type: string
+        facilityName:
+          type: string
+        courtName:
+          type: string
+        sportName:
+          type: string
+        bookingDate:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        durationMinutes:
+          type: integer
+        totalPriceVnd:
+          type: integer
+        status:
+          type: string
+          enum: [PENDING_PAYMENT, CONFIRMED, CANCELLED, EXPIRED, COMPLETED, NO_SHOW]
+        paymentStatus:
+          type: string
+          enum: [UNPAID, PAID, REFUND_PENDING, REFUNDED]
+        createdAt:
+          type: string
+          format: date-time
+
+    GuestPaymentOrderDTO:
+      type: object
+      properties:
+        paymentOrderId:
+          type: string
+        requestNumber:
+          type: string
+        facilityName:
+          type: string
+        courtName:
+          type: string
+        bookingDate:
+          type: string
+        timeRanges:
+          type: string
+          example: 08:00–09:30
+        amountVnd:
+          type: integer
+        status:
+          type: string
+        paymentUrl:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    CreateFacilityRequest:
+      type: object
+      required: [name, address, province, phoneNumber, openTime, closeTime]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        address:
+          type: string
+        province:
+          type: string
+        phoneNumber:
+          type: string
+        openTime:
+          type: string
+          example: '06:00'
+        closeTime:
+          type: string
+          example: '22:00'
+
+    UpdateFacilityRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        address:
+          type: string
+        province:
+          type: string
+        phoneNumber:
+          type: string
+        openTime:
+          type: string
+        closeTime:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED, PAUSED]
+
+    CreateCourtRequest:
+      type: object
+      required: [facilitySportId, name, pricePerHourVnd]
+      properties:
+        facilitySportId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        pricePerHourVnd:
+          type: integer
+
+    CreateCourtBlockRequest:
+      type: object
+      required: [courtId, bookingDate, selectedSlots, reason]
+      properties:
+        courtId:
+          type: string
+        bookingDate:
+          type: string
+          example: '2026-11-05'
+        selectedSlots:
+          type: array
+          items:
+            type: object
+            required: [startTime, endTime]
+            properties:
+              startTime:
+                type: string
+              endTime:
+                type: string
+        reason:
+          type: string
+          example: Bảo dưỡng sàn gỗ định kỳ
+
+    CreateOnBehalfBookingRequest:
+      type: object
+      required: [courtId, bookingDate, configVersion, selectedSlots, customerName, customerPhone, idempotencyKey]
+      properties:
+        courtId:
+          type: string
+        bookingDate:
+          type: string
+        configVersion:
+          type: integer
+        selectedSlots:
+          type: array
+          items:
+            type: object
+            properties:
+              startTime:
+                type: string
+              endTime:
+                type: string
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        idempotencyKey:
+          type: string
+
+    OnBehalfBookingCreatedDTO:
+      type: object
+      properties:
+        bookingRequestId:
+          type: string
+        requestNumber:
+          type: string
+        totalAmountVnd:
+          type: integer
+        paymentUrl:
+          type: string
+        guestAccessLink:
+          type: string
+          example: http://localhost:3000/guest-pay/PO123?code=xyz...
+
+    ProvisionOwnerRequest:
+      type: object
+      required: [fullName, email, phoneNumber]
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+
+    RefundCaseDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        refundCaseCode:
+          type: string
+        bookingCode:
+          type: string
+        refundAmountVnd:
+          type: integer
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, REFUNDED]
+        proofReference:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    EmailOutboxDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        eventType:
+          type: string
+        recipientEmail:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, SENT, FAILED]
+        retryCount:
+          type: integer
+        lastError:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    OwnerDashboardDTO:
+      type: object
+      properties:
+        bookingsToday:
+          type: integer
+        completedBookings:
+          type: integer
+        cancelledBookings:
+          type: integer
+        totalRevenueVnd:
+          type: integer
+        totalRefundedVnd:
+          type: integer
+        netRevenueVnd:
+          type: integer
+
+    AdminDashboardDTO:
+      type: object
+      properties:
+        totalCustomers:
+          type: integer
+        totalOwners:
+          type: integer
+        totalPublishedFacilities:
+          type: integer
+        totalActiveCourts:
+          type: integer
+        totalBookingsMonth:
+          type: integer
+
+    PaginatedFacilityResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacilityDTO'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginatedBookingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingDTO'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginatedUserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserDTO'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginatedActionLogResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              actorRole:
+                type: string
+              action:
+                type: string
+              targetType:
+                type: string
+              reason:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 25
+        totalPages:
+          type: integer
+          example: 3
