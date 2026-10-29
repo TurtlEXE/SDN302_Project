@@ -3,6 +3,9 @@ node_modules/
 .pnp
 .pnp.js
 
+# Local MongoDB Replica Set data
+.mongodb-rs/
+
 # Environment variables
 .env
 .env.local
@@ -42,4 +45,3 @@ server/uploads/*
 !server/uploads/.gitkeep
 uploads/*
 !uploads/.gitkeep
-

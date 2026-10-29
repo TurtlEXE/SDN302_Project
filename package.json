@@ -12,6 +12,9 @@
     "start": "npm --prefix server start",
     "dev": "npm --prefix server run dev",
     "worker": "npm --prefix server run worker",
+    "db:ensure-rs": "node scripts/ensure-mongo-rs.js",
+    "db:indexes": "npm --prefix server run db:indexes",
+    "db:seed": "npm --prefix server run db:seed",
     "test": "npm --prefix server test",
     "lint": "npm --prefix server run lint",
     "check:phase": "node scripts/check-phase.js"
@@ -25,4 +28,3 @@
   "author": "",
   "license": "MIT"
 }
-

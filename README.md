@@ -5,7 +5,8 @@ Dự án môn học sử dụng Node.js/Express, React và MongoDB, theo kiến 
 ## Trạng thái hiện tại
 
 - Phase P00: Đã được nghiệm thu (`ACCEPTED`).
-- Phase P01: Đã hoàn tất cài đặt cấu trúc dự án, workspaces, Express server, worker, cấu hình bảo mật, chuẩn hóa mã lỗi và hệ thống kiểm thử tự động; đang ở trạng thái `READY_FOR_REVIEW`.
+- Phase P01: Đã được nghiệm thu (`ACCEPTED`).
+- Phase P02: Đã hoàn tất cài đặt MongoDB Replica Set (`rs0`), 17 Mongoose models/schemas chuẩn hóa, helper transaction ACID, ràng buộc index & unique, điều phối `CourtDaySchedule`, scripts sync index và seed admin, fixtures kiểm thử; đang ở trạng thái `READY_FOR_REVIEW`.
 - Cổng frontend (`BE_READY`): Chưa nghiệm thu. Thư mục `client/` được giữ chỗ, cam kết không triển khai React trước khi toàn bộ backend hoàn tất nghiệm thu (P14).
 
 Các lệnh khởi động và kiểm thử được quản lý tập trung từ thư mục gốc thông qua npm workspaces.

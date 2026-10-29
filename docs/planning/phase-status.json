@@ -2,9 +2,9 @@
   "schema_version": 1,
   "updated_on": "2026-10-29",
   "workflow": "sequential_backend_first",
-  "active_phase": null,
+  "active_phase": "P02",
   "next_candidate": "P02",
-  "note": "Phase P01 đã được nghiệm thu chính thức (ACCEPTED) bởi Independent Reviewer ngày 29/10/2026. Sẵn sàng cho Phase P02.",
+  "note": "Phase P02 đã hoàn tất sửa lỗi BUG-P02-01 (đồng bộ 100% mã băm SHA-256) và BUG-P02-02 (scoped delete query, 39/39 tests PASS ổn định 100%). Sẵn sàng tái review (READY_FOR_REVIEW).",
   "gates": {
     "BE_READY": {
       "status": "CLOSED",
@@ -44,9 +44,9 @@
     },
     {
       "id": "P02",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
+      "status": "READY_FOR_REVIEW",
+      "report": "docs/phase-reports/P02.md",
+      "review": "docs/phase-reports/P02-review.md",
       "accepted_by": null,
       "accepted_on": null,
       "accepted_revision": null
