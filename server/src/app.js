@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { corsOptions } from './config/cors.js';
 import { generalRateLimiter } from './middlewares/rate-limit.js';
 import { notFound } from './middlewares/not-found.js';
@@ -16,6 +17,9 @@ app.use(helmet());
 
 // CORS Configuration
 app.use(cors(corsOptions));
+
+// Cookie Parsing
+app.use(cookieParser());
 
 // Body Parsing
 app.use(express.json({ limit: '10mb' }));

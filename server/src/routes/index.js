@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { checkDatabaseHealth } from '../config/database.js';
 import authRoutes from './auth.routes.js';
+import userRoutes from './user.routes.js';
+import adminRoutes from './admin.routes.js';
 
 const router = Router();
 
@@ -43,5 +45,11 @@ router.get('/', (req, res) => {
 
 // Authentication routes
 router.use('/auth', authRoutes);
+
+// User profile routes
+router.use('/users', userRoutes);
+
+// Admin management routes
+router.use('/admin', adminRoutes);
 
 export default router;
