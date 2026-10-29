@@ -60,5 +60,5 @@ app.use(notFound);
 // Centralized Error Handling
 app.use(errorHandler);
 
+export { app };
 export default app;
-

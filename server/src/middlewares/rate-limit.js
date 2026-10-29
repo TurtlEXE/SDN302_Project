@@ -34,3 +34,46 @@ export function createRateLimiter(options = {}) {
 
 export const generalRateLimiter = createRateLimiter();
 
+// In-memory store for email resend cooldowns (email -> lastTimestampMs)
+const emailCooldownMap = new Map();
+
+/**
+ * Middleware enforcing 60-second cooldown per email address
+ */
+export function emailCooldownMiddleware(req, res, next) {
+  const email = req.body?.email ? String(req.body.email).toLowerCase().trim() : null;
+  if (!email) {
+    return next();
+  }
+
+  const now = Date.now();
+  const lastRequested = emailCooldownMap.get(email);
+  const cooldownMs = 60 * 1000;
+
+  if (lastRequested && now - lastRequested < cooldownMs) {
+    const remainingSeconds = Math.ceil((cooldownMs - (now - lastRequested)) / 1000);
+    return res.status(429).json({
+      success: false,
+      error: {
+        code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
+        message: `Mỗi lần yêu cầu gửi lại email phải cách nhau ít nhất 60 giây. Vui lòng thử lại sau ${remainingSeconds} giây.`,
+        details: [{ field: 'email', remainingSeconds }],
+      },
+    });
+  }
+
+  res.on('finish', () => {
+    if (res.statusCode < 400) {
+      emailCooldownMap.set(email, Date.now());
+    }
+  });
+
+  next();
+}
+
+/**
+ * Resets the in-memory email cooldown map (primarily for testing)
+ */
+export function clearEmailCooldowns() {
+  emailCooldownMap.clear();
+}

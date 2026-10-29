@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { checkDatabaseHealth } from '../config/database.js';
+import authRoutes from './auth.routes.js';
 
 const router = Router();
 
@@ -40,5 +41,7 @@ router.get('/', (req, res) => {
   });
 });
 
-export default router;
+// Authentication routes
+router.use('/auth', authRoutes);
 
+export default router;

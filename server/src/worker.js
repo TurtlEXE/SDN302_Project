@@ -1,5 +1,6 @@
 import { env } from './config/env.js';
 import { connectDB, disconnectDB } from './config/database.js';
+import { startSendEmailsJob, stopSendEmailsJob } from './jobs/send-emails.job.js';
 import { logger } from './utils/logger.js';
 
 let isShuttingDown = false;
@@ -10,7 +11,11 @@ async function startWorker() {
 
     // Connect to database for job execution
     await connectDB(env.MONGODB_URI);
-    logger.info('Worker connected to database. Ready for scheduled jobs.');
+    logger.info('Worker connected to database.');
+
+    // Start background jobs
+    startSendEmailsJob({ intervalMs: 5000 });
+    logger.info('Worker background jobs started successfully. Ready for tasks.');
   } catch (err) {
     logger.error(`Worker failed to start: ${err.message}`, { error: err.message, stack: err.stack });
     process.exit(1);
@@ -23,6 +28,7 @@ async function gracefulShutdown(signal) {
 
   logger.info(`Worker received ${signal}. Shutting down worker...`);
   try {
+    stopSendEmailsJob();
     await disconnectDB();
     logger.info('Worker shutdown completed.');
     process.exit(0);
@@ -46,4 +52,3 @@ process.on('unhandledRejection', (reason) => {
 });
 
 startWorker();
-

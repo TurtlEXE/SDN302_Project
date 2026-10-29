@@ -68,6 +68,10 @@ const emailOutboxSchema = new Schema(
       type: String,
       default: null,
     },
+    lockedUntil: {
+      type: Date,
+      default: null,
+    },
     sentAt: {
       type: Date,
       default: null,
@@ -80,7 +84,7 @@ const emailOutboxSchema = new Schema(
 );
 
 emailOutboxSchema.index({ eventKey: 1 }, { unique: true });
-emailOutboxSchema.index({ status: 1, nextRetryAt: 1 });
+emailOutboxSchema.index({ status: 1, nextRetryAt: 1, lockedUntil: 1 });
 
 export const EmailOutbox = mongoose.model('EmailOutbox', emailOutboxSchema);
 export default EmailOutbox;
