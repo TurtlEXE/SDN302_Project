@@ -2,9 +2,9 @@
   "schema_version": 1,
   "updated_on": "2026-10-29",
   "workflow": "sequential_backend_first",
-  "active_phase": "P03",
-  "next_candidate": "P03",
-  "note": "Phase P03 đã hoàn thành khắc phục tồn tại sau đợt review Lần 1: Chuẩn hóa ký tự kết thúc 8 tệp về LF, đối chiếu 24/24 mã băm SHA-256 khớp 100% manifest, 60/60 tests pass, lint pass, check-phase pass, commit mốc sạch sẽ trên git. Sẵn sàng bàn giao tái review.",
+  "active_phase": null,
+  "next_candidate": "P04",
+  "note": "Phase P03 đã được Reviewer độc lập nghiệm thu chính thức (ACCEPTED) sau khi khắc phục triệt để tồn tại: 24/24 tệp khớp 100% manifest SHA-256, working tree sạch sẽ, commit mốc 51cb174, 60/60 tests pass. Sẵn sàng cho Phase P04.",
   "gates": {
     "BE_READY": {
       "status": "CLOSED",
@@ -53,12 +53,12 @@
     },
     {
       "id": "P03",
-      "status": "READY_FOR_REVIEW",
+      "status": "ACCEPTED",
       "report": "docs/phase-reports/P03.md",
       "review": "docs/phase-reports/P03-review.md",
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-29",
+      "accepted_revision": "51cb1745778b2e818addfe560cfcf4976f01b221 (docs/phase-reports/P03-manifest.sha256)"
     },
     {
       "id": "P04",
