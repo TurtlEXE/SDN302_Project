@@ -8,11 +8,16 @@ import { authSessionRepository } from '../../src/repositories/auth-session.repos
 import { userRepository } from '../../src/repositories/user.repository.js';
 
 test('Auth and CSRF Middlewares (Unit)', async (t) => {
-  await t.test('csrfGuard should pass when X-CSRF-Guard: 1 is provided', () => {
+  await t.test('csrfGuard should pass when X-CSRF-Guard: 1 and valid Origin are provided', () => {
     let nextCalled = false;
     let nextError = null;
 
-    const req = { headers: { 'x-csrf-guard': '1' } };
+    const req = {
+      headers: {
+        'x-csrf-guard': '1',
+        origin: 'http://localhost:3000',
+      },
+    };
     const res = {};
     const next = (err) => {
       nextCalled = true;

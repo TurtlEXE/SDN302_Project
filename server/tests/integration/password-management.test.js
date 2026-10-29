@@ -34,6 +34,7 @@ test('Password Management & Session Revocation API (Integration)', async (t) => 
   await t.test('POST /api/v1/auth/forgot-password should return generic 200 for non-existent email', async () => {
     const res = await request(app)
       .post('/api/v1/auth/forgot-password')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({ email: 'non-existent-user@sportbooking.local' });
 
@@ -56,6 +57,7 @@ test('Password Management & Session Revocation API (Integration)', async (t) => 
 
     const res = await request(app)
       .post('/api/v1/auth/forgot-password')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({ email: testEmail });
 
@@ -96,6 +98,7 @@ test('Password Management & Session Revocation API (Integration)', async (t) => 
     // 2. Request forgot password
     await request(app)
       .post('/api/v1/auth/forgot-password')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({ email: testEmail });
 
@@ -107,6 +110,7 @@ test('Password Management & Session Revocation API (Integration)', async (t) => 
     const newPassword = 'NewSecretPassword@123';
     const resetRes = await request(app)
       .post('/api/v1/auth/reset-password')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         token: resetToken,
@@ -130,6 +134,7 @@ test('Password Management & Session Revocation API (Integration)', async (t) => 
     // 6. User can log in with new password
     const loginRes = await request(app)
       .post('/api/v1/auth/login')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: testEmail,
@@ -155,6 +160,7 @@ test('Password Management & Session Revocation API (Integration)', async (t) => 
     // 2. Login to get session & token
     const loginRes = await request(app)
       .post('/api/v1/auth/login')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: testEmail,

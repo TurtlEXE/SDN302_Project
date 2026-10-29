@@ -38,6 +38,7 @@ test('Auth Registration, Verification, Login & Profile API (Integration)', async
   await t.test('POST /api/v1/auth/register should create unverified CUSTOMER and queue verification email', async () => {
     const res = await request(app)
       .post('/api/v1/auth/register')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: testEmail,
@@ -74,6 +75,7 @@ test('Auth Registration, Verification, Login & Profile API (Integration)', async
     // First registration
     await request(app)
       .post('/api/v1/auth/register')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: testEmail,
@@ -85,6 +87,7 @@ test('Auth Registration, Verification, Login & Profile API (Integration)', async
     // Duplicate registration
     const res = await request(app)
       .post('/api/v1/auth/register')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: testEmail,
@@ -101,6 +104,7 @@ test('Auth Registration, Verification, Login & Profile API (Integration)', async
     // Create unverified user
     await request(app)
       .post('/api/v1/auth/register')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: testEmail,
@@ -111,6 +115,7 @@ test('Auth Registration, Verification, Login & Profile API (Integration)', async
 
     const res = await request(app)
       .post('/api/v1/auth/login')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: testEmail,
@@ -125,6 +130,7 @@ test('Auth Registration, Verification, Login & Profile API (Integration)', async
     // 1. Register
     await request(app)
       .post('/api/v1/auth/register')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: testEmail,
@@ -141,6 +147,7 @@ test('Auth Registration, Verification, Login & Profile API (Integration)', async
     // 3. Verify Email
     const verifyRes = await request(app)
       .post('/api/v1/auth/verify-email')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({ token });
 
@@ -149,6 +156,7 @@ test('Auth Registration, Verification, Login & Profile API (Integration)', async
     // 4. Login
     const loginRes = await request(app)
       .post('/api/v1/auth/login')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: testEmail,

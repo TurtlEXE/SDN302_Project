@@ -6,6 +6,7 @@ import { userRepository } from '../repositories/user.repository.js';
 import { authSessionRepository } from '../repositories/auth-session.repository.js';
 import { refreshTokenRepository } from '../repositories/refresh-token.repository.js';
 import { withTransaction } from '../database/transaction.js';
+import { setRefreshCookie, clearRefreshCookie } from '../utils/cookie.js';
 import { AppError } from '../errors/app-error.js';
 import { ERROR_CODES } from '../errors/error-codes.js';
 import { env } from '../config/env.js';
@@ -100,7 +101,6 @@ export class AuthController {
               name: newUser.fullName,
               verificationUrl,
               expiresInMinutes: 15,
-              expiresAt,
             },
           },
           { session }
@@ -109,7 +109,7 @@ export class AuthController {
 
       return res.status(201).json({
         success: true,
-        message: 'Đăng ký tài khoản thành công. Vui lòng kiểm tra email để xác thực tài khoản.',
+        message: 'Đăng ký tài khoản thành công. Vui lòng kiểm tra email để xác thực tài khoản trong vòng 15 phút.',
       });
     } catch (err) {
       next(err);
@@ -117,8 +117,8 @@ export class AuthController {
   }
 
   /**
-   * Login user with email & password
-   * Returns access JWT in JSON and sets HttpOnly refresh_token cookie
+   * Login with email and password
+   * Returns JWT access token in JSON and sets HttpOnly refresh cookie
    */
   async login(req, res, next) {
     try {
@@ -128,7 +128,7 @@ export class AuthController {
         throw AppError.badRequest('Email và mật khẩu không được để trống.', ERROR_CODES.VALIDATION_ERROR);
       }
 
-      const normalizedEmail = String(email).trim().toLowerCase();
+      const normalizedEmail = email.trim().toLowerCase();
       const user = await userRepository.findByEmail(normalizedEmail);
 
       if (!user || !user.passwordHash) {
@@ -179,17 +179,11 @@ export class AuthController {
         expiresAt: absoluteExpiresAt,
       });
 
-      // Sign Access Token
+      // Sign Access Token (10m RAM, capped by session absolute expiry)
       const { accessToken, expiresInSeconds } = jwtService.signAccessToken(user, session);
 
       // Set HttpOnly Cookie
-      res.cookie(env.REFRESH_COOKIE_NAME, rawRefreshToken, {
-        httpOnly: true,
-        secure: env.NODE_ENV === 'production',
-        sameSite: 'Lax',
-        path: env.REFRESH_COOKIE_PATH,
-        maxAge: env.SESSION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
-      });
+      setRefreshCookie(res, rawRefreshToken, absoluteExpiresAt);
 
       return res.status(200).json({
         success: true,
@@ -199,6 +193,185 @@ export class AuthController {
           user: userRepository.toUserDTO(user),
         },
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Refresh Access Token (Token Rotation)
+   * Reads refresh_token cookie, detects token reuse, rotates token atomically in transaction.
+   */
+  async refresh(req, res, next) {
+    try {
+      const rawToken = req.cookies?.[env.REFRESH_COOKIE_NAME];
+      if (!rawToken || typeof rawToken !== 'string') {
+        clearRefreshCookie(res);
+        throw new AppError('Không tìm thấy cookie refresh token', 401, ERROR_CODES.UNAUTHORIZED);
+      }
+
+      const tokenHash = refreshTokenRepository.hashToken(rawToken);
+      const tokenDoc = await refreshTokenRepository.findByTokenHash(tokenHash);
+
+      if (!tokenDoc) {
+        clearRefreshCookie(res);
+        throw new AppError('Refresh token không hợp lệ hoặc không tồn tại', 401, ERROR_CODES.TOKEN_INVALID);
+      }
+
+      // Check for Token Reuse: token already has usedAt set!
+      if (tokenDoc.usedAt) {
+        // Active defense: Revoke entire session and all associated refresh tokens
+        await authSessionRepository.revokeSession(tokenDoc.sessionId, 'REUSE_DETECTED');
+        await refreshTokenRepository.revokeAllForSession(tokenDoc.sessionId);
+        clearRefreshCookie(res);
+        throw new AppError(
+          'Phát hiện tái sử dụng refresh token. Phiên đăng nhập đã bị thu hồi để đảm bảo an toàn.',
+          401,
+          ERROR_CODES.SESSION_REVOKED
+        );
+      }
+
+      // Check if token was revoked
+      if (tokenDoc.revokedAt) {
+        clearRefreshCookie(res);
+        throw new AppError('Refresh token đã bị thu hồi', 401, ERROR_CODES.SESSION_REVOKED);
+      }
+
+      // Check if token expired
+      if (tokenDoc.expiresAt <= new Date()) {
+        clearRefreshCookie(res);
+        throw new AppError('Refresh token đã hết hạn', 401, ERROR_CODES.TOKEN_EXPIRED);
+      }
+
+      // Verify Session in DB
+      const session = await authSessionRepository.findById(tokenDoc.sessionId);
+      if (!session || session.revokedAt || session.absoluteExpiresAt <= new Date()) {
+        clearRefreshCookie(res);
+        throw new AppError('Phiên đăng nhập không tồn tại hoặc đã hết hạn/bị thu hồi', 401, ERROR_CODES.SESSION_REVOKED);
+      }
+
+      // Verify User in DB
+      const user = await userRepository.findById(tokenDoc.userId);
+      if (!user) {
+        clearRefreshCookie(res);
+        throw new AppError('Người dùng không tồn tại', 401, ERROR_CODES.UNAUTHORIZED);
+      }
+
+      if (user.isLocked) {
+        await authSessionRepository.revokeSession(session._id, 'ADMIN_LOCKED');
+        await refreshTokenRepository.revokeAllForSession(session._id);
+        clearRefreshCookie(res);
+        throw new AppError('Tài khoản đã bị khóa bởi quản trị viên', 403, ERROR_CODES.ACCOUNT_LOCKED);
+      }
+
+      if (user.role === 'CUSTOMER' && !user.emailVerifiedAt) {
+        clearRefreshCookie(res);
+        throw new AppError('Tài khoản chưa được xác thực email', 403, ERROR_CODES.ACCOUNT_NOT_VERIFIED);
+      }
+
+      if (user.role === 'OWNER' && !user.activatedAt) {
+        clearRefreshCookie(res);
+        throw new AppError('Tài khoản chủ sân chưa được kích hoạt', 403, ERROR_CODES.ACCOUNT_NOT_ACTIVATED);
+      }
+
+      // Atomic rotation within MongoDB transaction
+      let newRawToken;
+      let accessToken;
+      let expiresInSeconds;
+
+      await withTransaction(async (dbSession) => {
+        // Concurrency guard: Mark old token as used atomically
+        const markedToken = await refreshTokenRepository.markUsedAtomic(tokenDoc._id, dbSession);
+        if (!markedToken) {
+          // Token was already marked used by a concurrent request
+          throw new AppError('Xung đột làm mới token đồng thời.', 401, ERROR_CODES.SESSION_REVOKED);
+        }
+
+        // Generate new refresh token
+        newRawToken = refreshTokenRepository.generateRawToken();
+        const newTokenHash = refreshTokenRepository.hashToken(newRawToken);
+
+        // Expiry of new refresh token cannot exceed session absolute expiry
+        const newExpiresAt = session.absoluteExpiresAt;
+
+        const newRefreshToken = await refreshTokenRepository.create(
+          {
+            sessionId: session._id,
+            userId: user._id,
+            tokenHash: newTokenHash,
+            expiresAt: newExpiresAt,
+          },
+          dbSession
+        );
+
+        // Link replacedByTokenId on the old token
+        await refreshTokenRepository.setReplacedBy(tokenDoc._id, newRefreshToken._id, dbSession);
+
+        // Sign new JWT access token (capped by session absolute expiry)
+        const signResult = jwtService.signAccessToken(user, session);
+        accessToken = signResult.accessToken;
+        expiresInSeconds = signResult.expiresInSeconds;
+      });
+
+      // Set new refresh token cookie
+      setRefreshCookie(res, newRawToken, session.absoluteExpiresAt);
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          accessToken,
+          expiresInSeconds,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Logout current session
+   * Reads refresh_token cookie, revokes session and associated refresh tokens, clears cookie.
+   * Idempotent: Returns 204 No Content even if cookie is missing or already revoked.
+   */
+  async logout(req, res, next) {
+    try {
+      const rawToken = req.cookies?.[env.REFRESH_COOKIE_NAME];
+      clearRefreshCookie(res);
+
+      if (rawToken && typeof rawToken === 'string') {
+        const tokenHash = refreshTokenRepository.hashToken(rawToken);
+        const tokenDoc = await refreshTokenRepository.findByTokenHash(tokenHash);
+
+        if (tokenDoc) {
+          await authSessionRepository.revokeSession(tokenDoc.sessionId, 'LOGOUT');
+          await refreshTokenRepository.revokeAllForSession(tokenDoc.sessionId);
+        }
+      }
+
+      return res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Logout all sessions of the user
+   * Requires Bearer access token authentication.
+   * Increments user's tokenVersion, revokes all sessions and refresh tokens, clears cookie.
+   */
+  async logoutAll(req, res, next) {
+    try {
+      const userId = req.user._id;
+
+      await withTransaction(async (dbSession) => {
+        await userRepository.incrementTokenVersion(userId, dbSession);
+        await authSessionRepository.revokeAllUserSessions(userId, 'LOGOUT', dbSession);
+        await refreshTokenRepository.revokeAllForUser(userId, dbSession);
+      });
+
+      clearRefreshCookie(res);
+
+      return res.status(204).end();
     } catch (err) {
       next(err);
     }
@@ -252,7 +425,7 @@ export class AuthController {
   }
 
   /**
-   * Initiates forgot password flow; sends reset link via transactional outbox
+   * Requests password reset email
    */
   async forgotPassword(req, res, next) {
     try {
@@ -265,7 +438,7 @@ export class AuthController {
 
       const user = await userRepository.findByEmail(email);
 
-      // Generic response for privacy if user not found, locked, or has no passwordHash
+      // Privacy protection: Return generic message if user not found or locked
       if (!user || user.isLocked) {
         return res.status(200).json({
           success: true,
@@ -286,14 +459,13 @@ export class AuthController {
             eventKey: `RESET_PASSWORD:${user._id}:${Date.now()}`,
             eventType: TOKEN_TYPES.RESET_PASSWORD,
             recipientEmail: user.email,
-            recipientName: user.fullName || 'Người dùng',
+            recipientName: user.fullName,
             subject: '[SportBooking] Yêu cầu đặt lại mật khẩu tài khoản',
             templateName: 'RESET_PASSWORD',
             templateData: {
-              name: user.fullName || 'Người dùng',
+              name: user.fullName,
               resetUrl,
               expiresInMinutes: 15,
-              expiresAt,
             },
           },
           { session }
@@ -310,7 +482,7 @@ export class AuthController {
   }
 
   /**
-   * Resets password using single-use token and revokes all active user sessions
+   * Resets password using single-use email token and revokes all active sessions
    */
   async resetPassword(req, res, next) {
     try {
@@ -324,7 +496,7 @@ export class AuthController {
 
       if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
         throw AppError.badRequest('Mật khẩu mới phải có tối thiểu 8 ký tự.', ERROR_CODES.VALIDATION_ERROR, [
-          { field: 'newPassword', message: 'Mật khẩu phải có ít nhất 8 ký tự.' },
+          { field: 'newPassword', message: 'Mật khẩu mới phải có ít nhất 8 ký tự.' },
         ]);
       }
 
@@ -342,9 +514,11 @@ export class AuthController {
         await refreshTokenRepository.revokeAllForUser(consumedToken.userId, session);
       });
 
+      clearRefreshCookie(res);
+
       return res.status(200).json({
         success: true,
-        message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại với mật khẩu mới.',
+        message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới.',
       });
     } catch (err) {
       next(err);
@@ -385,6 +559,8 @@ export class AuthController {
         await authSessionRepository.revokeAllUserSessions(req.user._id, 'PASSWORD_CHANGED', session);
         await refreshTokenRepository.revokeAllForUser(req.user._id, session);
       });
+
+      clearRefreshCookie(res);
 
       return res.status(200).json({
         success: true,
@@ -436,17 +612,16 @@ export class AuthController {
 
         await emailService.queueEmail(
           {
-            eventKey: `VERIFY_EMAIL:${user._id}:${Date.now()}`,
+            eventKey: `RESEND_VERIFY_EMAIL:${user._id}:${Date.now()}`,
             eventType: TOKEN_TYPES.VERIFY_EMAIL,
             recipientEmail: user.email,
-            recipientName: user.fullName || 'Khách hàng',
+            recipientName: user.fullName,
             subject: '[SportBooking] Xác thực địa chỉ email tài khoản của bạn',
             templateName: 'VERIFY_EMAIL',
             templateData: {
-              name: user.fullName || 'Khách hàng',
+              name: user.fullName,
               verificationUrl,
               expiresInMinutes: 15,
-              expiresAt,
             },
           },
           { session }

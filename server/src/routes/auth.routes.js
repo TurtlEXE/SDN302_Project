@@ -16,6 +16,21 @@ router.post('/login', csrfGuard, (req, res, next) => {
   authController.login(req, res, next);
 });
 
+// Refresh Access Token via HttpOnly cookie (Token Rotation & Reuse Detection, CSRF guarded)
+router.post('/refresh', csrfGuard, (req, res, next) => {
+  authController.refresh(req, res, next);
+});
+
+// Logout current session via HttpOnly cookie (CSRF guarded)
+router.post('/logout', csrfGuard, (req, res, next) => {
+  authController.logout(req, res, next);
+});
+
+// Logout all active sessions (Bearer token required)
+router.post('/logout-all', authenticate, (req, res, next) => {
+  authController.logoutAll(req, res, next);
+});
+
 // Resend verification email with 60s cooldown per email (CSRF guarded)
 router.post('/resend-verification', csrfGuard, emailCooldownMiddleware, (req, res, next) => {
   authController.resendVerification(req, res, next);

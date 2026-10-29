@@ -43,6 +43,39 @@ export const refreshTokenRepository = {
   },
 
   /**
+   * Atomically mark a refresh token as used if it was not already used
+   * @param {string|import('mongoose').Types.ObjectId} tokenId
+   * @param {import('mongoose').ClientSession|null} [session=null]
+   * @returns {Promise<import('../models/refresh-token.model.js').RefreshToken|null>}
+   */
+  async markUsedAtomic(tokenId, session = null) {
+    const query = RefreshToken.findOneAndUpdate(
+      { _id: tokenId, usedAt: null },
+      { $set: { usedAt: new Date() } },
+      { new: true }
+    );
+    if (session) query.session(session);
+    return query.exec();
+  },
+
+  /**
+   * Link replacedByTokenId to the used token
+   * @param {string|import('mongoose').Types.ObjectId} tokenId
+   * @param {string|import('mongoose').Types.ObjectId} replacedByTokenId
+   * @param {import('mongoose').ClientSession|null} [session=null]
+   * @returns {Promise<import('../models/refresh-token.model.js').RefreshToken|null>}
+   */
+  async setReplacedBy(tokenId, replacedByTokenId, session = null) {
+    const query = RefreshToken.findByIdAndUpdate(
+      tokenId,
+      { $set: { replacedByTokenId } },
+      { new: true }
+    );
+    if (session) query.session(session);
+    return query.exec();
+  },
+
+  /**
    * Revoke all refresh tokens for a session
    * @param {string|import('mongoose').Types.ObjectId} sessionId
    * @param {import('mongoose').ClientSession|null} [session=null]

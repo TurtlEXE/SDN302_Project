@@ -5,12 +5,13 @@ import { ERROR_CODES } from '../errors/error-codes.js';
 
 export const jwtService = {
   /**
-   * Signs an access JWT with standard claims and 10 minutes expiry.
+   * Signs an access JWT with standard claims and 10 minutes expiry (capped by session absolute expiry).
    * @param {object} user - User document or object with _id, tokenVersion, role
-   * @param {object} session - AuthSession document or object with _id
+   * @param {object} session - AuthSession document or object with _id, optional absoluteExpiresAt
+   * @param {object} [options={}] - Optional overrides
    * @returns {{ accessToken: string, expiresInSeconds: number }}
    */
-  signAccessToken(user, session) {
+  signAccessToken(user, session, options = {}) {
     const payload = {
       sub: user._id.toString(),
       sid: session._id.toString(),
@@ -19,16 +20,30 @@ export const jwtService = {
       type: 'access',
     };
 
+    let expiresInSeconds = 600; // Default 10 minutes (600s)
+
+    if (session?.absoluteExpiresAt) {
+      const remainingSeconds = Math.max(
+        1,
+        Math.floor((new Date(session.absoluteExpiresAt).getTime() - Date.now()) / 1000)
+      );
+      expiresInSeconds = Math.min(600, remainingSeconds);
+    }
+
+    if (options.expiresInSeconds && typeof options.expiresInSeconds === 'number') {
+      expiresInSeconds = options.expiresInSeconds;
+    }
+
     const accessToken = jwt.sign(payload, env.JWT_ACCESS_SECRET, {
       algorithm: 'HS256',
-      expiresIn: env.JWT_ACCESS_EXPIRES_IN,
+      expiresIn: `${expiresInSeconds}s`,
       issuer: env.JWT_ISSUER,
       audience: env.JWT_AUDIENCE,
     });
 
     return {
       accessToken,
-      expiresInSeconds: 600, // 10 minutes
+      expiresInSeconds,
     };
   },
 

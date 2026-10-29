@@ -129,6 +129,7 @@ test('Admin Provisioning & Owner Activation API (Integration)', async (t) => {
     // 2. Try logging in before activation (has no password)
     const loginFailRes = await request(app)
       .post('/api/v1/auth/login')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: ownerEmail,
@@ -145,6 +146,7 @@ test('Admin Provisioning & Owner Activation API (Integration)', async (t) => {
     // 4. Activate owner and set initial password
     const activateRes = await request(app)
       .post('/api/v1/auth/activate-owner')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         token: activationToken,
@@ -163,6 +165,7 @@ test('Admin Provisioning & Owner Activation API (Integration)', async (t) => {
     // 5. Try activating again with same token (must fail - single-use)
     const secondActivateRes = await request(app)
       .post('/api/v1/auth/activate-owner')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         token: activationToken,
@@ -174,6 +177,7 @@ test('Admin Provisioning & Owner Activation API (Integration)', async (t) => {
     // 6. Login now succeeds for owner
     const loginSuccessRes = await request(app)
       .post('/api/v1/auth/login')
+      .set('Origin', 'http://localhost:3000')
       .set('X-CSRF-Guard', '1')
       .send({
         email: ownerEmail,

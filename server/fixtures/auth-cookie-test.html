@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SportBooking — Auth Cookie & Origin Smoke Test Fixture</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 20px;
+      line-height: 1.5;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    h1 {
+      font-size: 1.5rem;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 8px;
+    }
+    .panel {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .btn {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 14px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    .btn:hover {
+      background: #1d4ed8;
+    }
+    .btn-danger {
+      background: #dc2626;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    pre {
+      background: #0f172a;
+      color: #f1f5f9;
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      max-height: 350px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .badge-pass { background: #dcfce7; color: #15803d; }
+    .badge-fail { background: #fee2e2; color: #b91c1c; }
+    .badge-info { background: #e0f2fe; color: #0369a1; }
+  </style>
+</head>
+<body>
+  <h1>Kiểm thử Trình duyệt Tối thiểu: Cookie HttpOnly & Auth Request Guard (P05)</h1>
+  <p>Fixture này dùng để kiểm chứng trong môi trường trình duyệt: cookie <code>refresh_token</code> có cờ <code>HttpOnly</code>, cơ chế quay vòng token (rotation), phát hiện reuse và middleware chặn Origin lạ/thiếu header CSRF.</p>
+
+  <div class="panel">
+    <h3>Điều khiển Kiểm thử</h3>
+    <button class="btn" onclick="runLoginTest()">1. Đăng nhập (Set HttpOnly Cookie)</button>
+    <button class="btn" onclick="checkDocumentCookie()">2. Kiểm tra document.cookie (Không lộ refresh token)</button>
+    <button class="btn" onclick="runRefreshTest()">3. Quay vòng Token (POST /auth/refresh)</button>
+    <button class="btn btn-danger" onclick="runBadCsrfTest()">4. Test CSRF Attack (Thiếu header X-CSRF-Guard)</button>
+    <button class="btn btn-danger" onclick="runLogoutTest()">5. Đăng xuất (POST /auth/logout)</button>
+    <button class="btn" onclick="clearLog()">Xóa Log</button>
+  </div>
+
+  <div class="panel">
+    <h3>Nhật ký Kiểm thử (Console Log)</h3>
+    <pre id="logOutput">// Sẵn sàng chạy kiểm thử...</pre>
+  </div>
+
+  <script>
+    const API_BASE = '/api/v1/auth';
+    let currentAccessToken = null;
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('logOutput');
+      const time = new Date().toLocaleTimeString();
+      output.textContent += `\n[${time}] [${type.toUpperCase()}] ${message}`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById('logOutput').textContent = '// Đã xóa nhật ký.';
+    }
+
+    // 1. Login Test
+    async function runLoginTest() {
+      log('Đang gửi POST /api/v1/auth/login kèm header X-CSRF-Guard: 1 và credentials: include...', 'info');
+      try {
+        const res = await fetch(`${API_BASE}/login`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Guard': '1',
+          },
+          body: JSON.stringify({
+            email: 'admin@sportbooking.local',
+            password: 'AdminPassword123!',
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          currentAccessToken = data.data.accessToken;
+          log(`Đăng nhập thành công! HTTP ${res.status}. Access token đã nhận trong RAM (hạn ${data.data.expiresInSeconds}s).`, 'pass');
+          log(`User DTO nhận được: id=${data.data.user.id}, email=${data.data.user.email}, role=${data.data.user.role}`, 'info');
+        } else {
+          log(`Đăng nhập thất bại: HTTP ${res.status} - ${JSON.stringify(data)}`, 'fail');
+        }
+      } catch (err) {
+        log(`Lỗi kết nối: ${err.message}`, 'fail');
+      }
+    }
+
+    // 2. Check document.cookie
+    function checkDocumentCookie() {
+      const cookies = document.cookie;
+      log(`Nội dung document.cookie hiện tại: "${cookies}"`, 'info');
+      if (!cookies.includes('refresh_token')) {
+        log('THÀNH CÔNG: Cookie "refresh_token" KHÔNG xuất hiện trong document.cookie. Cờ HttpOnly hoạt động bảo vệ token tuyệt đối trước JavaScript XSS!', 'pass');
+      } else {
+        log('CẢNH BÁO: Cookie refresh_token bị lộ trong document.cookie! Thiếu cờ HttpOnly!', 'fail');
+      }
+    }
+
+    // 3. Refresh Test
+    async function runRefreshTest() {
+      log('Đang gửi POST /api/v1/auth/refresh với cookie HttpOnly tự động gửi kèm...', 'info');
+      try {
+        const res = await fetch(`${API_BASE}/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'X-CSRF-Guard': '1',
+          },
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          currentAccessToken = data.data.accessToken;
+          log(`Quay vòng token thành công! HTTP ${res.status}. Cấp Access token mới: ${currentAccessToken.substring(0, 20)}... (hạn ${data.data.expiresIn}s)`, 'pass');
+        } else {
+          log(`Quay vòng token thất bại: HTTP ${res.status} - ${JSON.stringify(data)}`, 'fail');
+        }
+      } catch (err) {
+        log(`Lỗi kết nối: ${err.message}`, 'fail');
+      }
+    }
+
+    // 4. Bad CSRF Test (Thiếu header X-CSRF-Guard)
+    async function runBadCsrfTest() {
+      log('Mô phỏng tấn công CSRF: Gửi POST /api/v1/auth/refresh CỐ TÌNH THIẾU header X-CSRF-Guard...', 'info');
+      try {
+        const res = await fetch(`${API_BASE}/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+
+        const data = await res.json();
+        if (res.status === 403) {
+          log(`THÀNH CÔNG: Server chặn đứng yêu cầu với HTTP 403 (${data.error?.code}). Guard bảo vệ CSRF hoạt động chuẩn xác!`, 'pass');
+        } else {
+          log(`LỖI: Server không chặn yêu cầu thiếu header CSRF! HTTP ${res.status}`, 'fail');
+        }
+      } catch (err) {
+        log(`Lỗi kết nối: ${err.message}`, 'fail');
+      }
+    }
+
+    // 5. Logout Test
+    async function runLogoutTest() {
+      log('Đang gửi POST /api/v1/auth/logout...', 'info');
+      try {
+        const res = await fetch(`${API_BASE}/logout`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'X-CSRF-Guard': '1',
+          },
+        });
+
+        if (res.status === 204 || res.ok) {
+          currentAccessToken = null;
+          log(`Đăng xuất thành công! HTTP ${res.status}. Server đã xóa cookie refresh_token và thu hồi phiên AuthSession.`, 'pass');
+        } else {
+          log(`Đăng xuất thất bại: HTTP ${res.status}`, 'fail');
+        }
+      } catch (err) {
+        log(`Lỗi kết nối: ${err.message}`, 'fail');
+      }
+    }
+  </script>
+</body>
+</html>

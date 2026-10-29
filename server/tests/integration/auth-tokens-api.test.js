@@ -79,6 +79,8 @@ describe('Auth Tokens & Resend Verification API (Integration)', () => {
   it('POST /api/v1/auth/resend-verification should issue new token, queue outbox email and commit atomically', async () => {
     const res = await request(app)
       .post('/api/v1/auth/resend-verification')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Guard', '1')
       .send({ email: UNVERIFIED_USER_EMAIL });
 
     assert.equal(res.status, 200);
@@ -101,12 +103,16 @@ describe('Auth Tokens & Resend Verification API (Integration)', () => {
     // 1st request -> 200 OK
     const res1 = await request(app)
       .post('/api/v1/auth/resend-verification')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Guard', '1')
       .send({ email: UNVERIFIED_USER_EMAIL });
     assert.equal(res1.status, 200);
 
     // 2nd request within 60s -> 429 Too Many Requests
     const res2 = await request(app)
       .post('/api/v1/auth/resend-verification')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Guard', '1')
       .send({ email: UNVERIFIED_USER_EMAIL });
 
     assert.equal(res2.status, 429);
@@ -117,6 +123,8 @@ describe('Auth Tokens & Resend Verification API (Integration)', () => {
   it('POST /api/v1/auth/resend-verification should return 200 for already verified account without issuing tokens', async () => {
     const res = await request(app)
       .post('/api/v1/auth/resend-verification')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Guard', '1')
       .send({ email: VERIFIED_USER_EMAIL });
 
     assert.equal(res.status, 200);
@@ -129,6 +137,8 @@ describe('Auth Tokens & Resend Verification API (Integration)', () => {
   it('POST /api/v1/auth/resend-verification should return 200 generic message for non-existent email', async () => {
     const res = await request(app)
       .post('/api/v1/auth/resend-verification')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Guard', '1')
       .send({ email: 'non-existent-user-xyz@sportbooking.local' });
 
     assert.equal(res.status, 200);
@@ -161,6 +171,8 @@ describe('Auth Tokens & Resend Verification API (Integration)', () => {
     // 3. POST /api/v1/auth/verify-email (actual form submission)
     const postRes = await request(app)
       .post('/api/v1/auth/verify-email')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Guard', '1')
       .send({ token });
 
     assert.equal(postRes.status, 200);
@@ -176,6 +188,8 @@ describe('Auth Tokens & Resend Verification API (Integration)', () => {
     // 4. Repeated POST /api/v1/auth/verify-email must be rejected with TOKEN_ALREADY_USED
     const repeatPostRes = await request(app)
       .post('/api/v1/auth/verify-email')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Guard', '1')
       .send({ token });
 
     assert.equal(repeatPostRes.status, 400);
@@ -189,6 +203,8 @@ describe('Auth Tokens & Resend Verification API (Integration)', () => {
     // User requests resend verification
     const res = await request(app)
       .post('/api/v1/auth/resend-verification')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-CSRF-Guard', '1')
       .send({ email: UNVERIFIED_USER_EMAIL });
 
     // The HTTP response still succeeds!
