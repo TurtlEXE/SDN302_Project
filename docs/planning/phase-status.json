@@ -4,7 +4,7 @@
   "workflow": "sequential_backend_first",
   "active_phase": "P03",
   "next_candidate": "P03",
-  "note": "Phase P03 đã hoàn thành toàn bộ công việc và kiểm chứng, sẵn sàng cho review (READY_FOR_REVIEW).",
+  "note": "Phase P03 đã hoàn thành khắc phục tồn tại sau đợt review Lần 1: Chuẩn hóa ký tự kết thúc 8 tệp về LF, đối chiếu 24/24 mã băm SHA-256 khớp 100% manifest, 60/60 tests pass, lint pass, check-phase pass, commit mốc sạch sẽ trên git. Sẵn sàng bàn giao tái review.",
   "gates": {
     "BE_READY": {
       "status": "CLOSED",
@@ -55,7 +55,7 @@
       "id": "P03",
       "status": "READY_FOR_REVIEW",
       "report": "docs/phase-reports/P03.md",
-      "review": null,
+      "review": "docs/phase-reports/P03-review.md",
       "accepted_by": null,
       "accepted_on": null,
       "accepted_revision": null
