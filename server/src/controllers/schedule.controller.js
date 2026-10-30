@@ -35,6 +35,38 @@ export class ScheduleController {
       next(err);
     }
   }
+
+  /**
+   * GET /api/v1/facilities/:id/schedule?date=YYYY-MM-DD
+   * Returns FacilityScheduleDTO with all sports and courts grouped for that date (B04)
+   */
+  async getFacilitySchedule(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { date, role } = req.query;
+
+      if (!date) {
+        throw AppError.badRequest(
+          'Tham số ngày chơi (date) là bắt buộc định dạng YYYY-MM-DD.',
+          ERROR_CODES.VALIDATION_ERROR
+        );
+      }
+
+      const effectiveRole =
+        req.user?.role === 'OWNER' || role === 'OWNER' ? 'OWNER' : 'CUSTOMER';
+
+      const scheduleDTO = await scheduleService.getFacilitySchedule(id, date, null, {
+        forRole: effectiveRole,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: scheduleDTO,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const scheduleController = new ScheduleController();

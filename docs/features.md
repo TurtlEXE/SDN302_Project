@@ -35,8 +35,8 @@ Các quy tắc dưới đây là lựa chọn cho dự án mới, không phải 
 - Một BookingRequest có một PaymentOrder thanh toán toàn bộ tổng tiền các Booking bằng VNPay. Không trả từng phần, trả sau hoặc trả bằng tiền mặt trong phạm vi bản mới.
 - Mỗi lần xác nhận đặt chọn một sân con trong một ngày, có thể chọn nhiều ô liên tiếp hoặc không liên tiếp. Server gộp từng dải liên tiếp thành một Booking riêng; một lần xác nhận có thể trả về nhiều mã đơn.
 - Mỗi Booking chỉ có một khoảng `startTime–endTime`. Khi chờ thanh toán, hủy theo toàn bộ yêu cầu; sau khi đã trả tiền, các Booking được hoàn tất hoặc hủy hỗ trợ độc lập theo điều kiện tương ứng. Các đơn cùng lần xác nhận có chung mã yêu cầu để tra cứu.
-- Giá cố định theo giờ của từng sân, tính theo tổng số phút thực đặt; áp dụng mọi ngày, chưa có giá cao điểm hoặc giá cuối tuần.
-- Giờ mở và đóng cửa nằm trên mốc 30 phút, dùng chung cho các ngày. Không hỗ trợ lịch qua đêm; giờ đóng cửa tối đa 23:00 trong bản đầu. Ô giờ bắt đầu từ giờ mở cửa; phần dư cuối ngày không đủ một bước giờ không cho đặt.
+- Bảng giá theo khung giờ và loại ngày (ngày thường thứ Hai–thứ Sáu, cuối tuần thứ Bảy–Chủ nhật theo Asia/Ho_Chi_Minh) của từng sân; khoảng chơi đi qua nhiều mức giá được chia đoạn tính tiền chính xác theo từng mức giá áp dụng và lưu snapshot chi tiết từng đoạn (pricingSnapshot). Báo giá chính thức do server tính.
+- Cơ sở cấu hình giờ mở/đóng hoặc trạng thái nghỉ cho từng ngày trong tuần (thứ Hai đến Chủ nhật). Không hỗ trợ lịch qua đêm; giờ đóng cửa tối đa 23:00. Ô giờ bắt đầu từ giờ mở cửa của ngày được chọn; phần dư cuối ngày không đủ một bước giờ không cho đặt.
 - Được đặt từ hôm nay đến hết ngày thứ 30 tính từ hôm nay; giờ bắt đầu sớm nhất phải cách thời điểm tạo yêu cầu ít nhất 15 phút để có đủ cửa sổ thanh toán 10 phút. Đây là quy tắc đề xuất cho bản mới.
 - Khách tự hủy toàn bộ yêu cầu khi còn chờ thanh toán. Đơn đã trả tiền không tự hủy theo mốc 2 giờ; khách liên hệ hỗ trợ, theo phạm vi mã nguồn hiện chỉ hỗ trợ tự hủy đơn chờ. Hủy do cơ sở không thể phục vụ và hoàn tiền thủ công được mô tả ở mục 8.7.
 - Dùng tiếng Việt, tiền Việt Nam và múi giờ `Asia/Ho_Chi_Minh` cho nghiệp vụ.
@@ -616,7 +616,7 @@ Không cần bảng/collection hoa hồng, voucher, sản phẩm, giỏ hàng, n
 - Đăng nhập Google/Facebook và OTP SMS; bản đầu dùng liên kết email dùng một lần thay cho mã OTP.
 - Bản đồ tương tác, định vị khoảng cách, chỉ đường hoặc gợi ý sân bằng AI.
 - Đặt nhiều sân hoặc nhiều ngày trong một lần xác nhận, đặt định kỳ hoặc gói tháng. Chọn các dải rời nhau trên cùng sân/ngày được hỗ trợ và tách thành Booking riêng.
-- Giá cao điểm/cuối tuần/ngày lễ, lịch mở cửa theo từng thứ và lịch qua đêm.
+- Giá ngày lễ, lịch ngày lễ đặc thù và lịch qua đêm (Bảng giá theo khung giờ và loại ngày thường/cuối tuần cùng lịch mở cửa theo từng thứ trong tuần được hỗ trợ chính thức từ batch B03).
 - Check-in bằng QR, xử lý vào/ra riêng cho từng slot, phụ thu chơi quá giờ.
 - Báo cáo chuyên sâu, xuất Excel/PDF, hóa đơn điện tử và đa ngôn ngữ.
 

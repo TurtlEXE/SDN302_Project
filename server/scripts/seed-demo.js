@@ -17,6 +17,7 @@ import { PaymentTransaction } from '../src/models/payment-transaction.model.js';
 import { RefundCase } from '../src/models/refund-case.model.js';
 import { EmailOutbox } from '../src/models/email-outbox.model.js';
 import { ActionLog } from '../src/models/action-log.model.js';
+import { CourtBlock } from '../src/models/court-block.model.js';
 import { getCurrentDateVN, parseTimeToMinutes } from '../src/utils/date-time.js';
 
 /**
@@ -116,6 +117,7 @@ export async function seedDemo(uri = env.MONGODB_URI) {
   // 2. Sports
   const sportNames = [
     { code: 'BADMINTON', name: 'Cầu lông', normalizedName: 'CAU LONG', description: 'Môn cầu lông trong nhà' },
+    { code: 'PICKLEBALL', name: 'Pickleball', normalizedName: 'PICKLEBALL', description: 'Môn bóng vợt Pickleball' },
     { code: 'FOOTBALL', name: 'Bóng đá', normalizedName: 'BONG DA', description: 'Sân bóng mini cỏ nhân tạo' },
     { code: 'TENNIS', name: 'Tennis', normalizedName: 'TENNIS', description: 'Sân quần vợt tiêu chuẩn' },
   ];
@@ -168,6 +170,16 @@ export async function seedDemo(uri = env.MONGODB_URI) {
     });
   }
 
+  let fSportHanoiPickleball = await FacilitySport.findOne({ facilityId: facilityHanoi._id, sportId: sportsMap.PICKLEBALL._id });
+  if (!fSportHanoiPickleball) {
+    fSportHanoiPickleball = await FacilitySport.create({
+      facilityId: facilityHanoi._id,
+      sportId: sportsMap.PICKLEBALL._id,
+      slotStepMinutes: 60,
+      configVersion: 1,
+    });
+  }
+
   // Danang Facility
   let facilityDanang = await Facility.findOne({ name: 'Sân Bóng Đá Sơn Trà' });
   if (!facilityDanang) {
@@ -211,8 +223,22 @@ export async function seedDemo(uri = env.MONGODB_URI) {
       sportId: sportsMap.BADMINTON._id,
       name: 'Sân 1',
       pricePerHourVnd: 100000,
+      pricingRules: [
+        { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 100000 },
+        { dayType: 'WEEKDAY', startTime: '17:00', endTime: '18:00', pricePerHourVnd: 100000 },
+        { dayType: 'WEEKDAY', startTime: '18:00', endTime: '22:00', pricePerHourVnd: 150000 },
+        { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 180000 },
+      ],
       isActive: true,
     });
+  } else if (!courtHN1.pricingRules || courtHN1.pricingRules.length === 0) {
+    courtHN1.pricingRules = [
+      { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 100000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '18:00', pricePerHourVnd: 100000 },
+      { dayType: 'WEEKDAY', startTime: '18:00', endTime: '22:00', pricePerHourVnd: 150000 },
+      { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 180000 },
+    ];
+    await courtHN1.save();
   }
 
   let courtHN2 = await Court.findOne({ facilityId: facilityHanoi._id, name: 'Sân 2' });
@@ -223,6 +249,54 @@ export async function seedDemo(uri = env.MONGODB_URI) {
       sportId: sportsMap.BADMINTON._id,
       name: 'Sân 2',
       pricePerHourVnd: 120000,
+      pricingRules: [
+        { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 110000 },
+        { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:00', pricePerHourVnd: 160000 },
+        { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 190000 },
+      ],
+      isActive: true,
+    });
+  } else if (!courtHN2.pricingRules || courtHN2.pricingRules.length === 0) {
+    courtHN2.pricingRules = [
+      { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 110000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:00', pricePerHourVnd: 160000 },
+      { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 190000 },
+    ];
+    await courtHN2.save();
+  }
+
+  // Hanoi Pickleball Courts (slotStepMinutes: 60)
+  const fSportHanoiPKId = fSportHanoiPickleball._id;
+  let courtPK1 = await Court.findOne({ facilityId: facilityHanoi._id, name: 'Sân Pickleball 1' });
+  if (!courtPK1) {
+    courtPK1 = await Court.create({
+      facilityId: facilityHanoi._id,
+      facilitySportId: fSportHanoiPKId,
+      sportId: sportsMap.PICKLEBALL._id,
+      name: 'Sân Pickleball 1',
+      pricePerHourVnd: 140000,
+      pricingRules: [
+        { dayType: 'WEEKDAY', startTime: '06:00', endTime: '16:00', pricePerHourVnd: 120000 },
+        { dayType: 'WEEKDAY', startTime: '16:00', endTime: '22:00', pricePerHourVnd: 180000 },
+        { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 220000 },
+      ],
+      isActive: true,
+    });
+  }
+
+  let courtPK2 = await Court.findOne({ facilityId: facilityHanoi._id, name: 'Sân Pickleball 2' });
+  if (!courtPK2) {
+    courtPK2 = await Court.create({
+      facilityId: facilityHanoi._id,
+      facilitySportId: fSportHanoiPKId,
+      sportId: sportsMap.PICKLEBALL._id,
+      name: 'Sân Pickleball 2',
+      pricePerHourVnd: 150000,
+      pricingRules: [
+        { dayType: 'WEEKDAY', startTime: '06:00', endTime: '12:00', pricePerHourVnd: 120000 },
+        { dayType: 'WEEKDAY', startTime: '14:00', endTime: '22:00', pricePerHourVnd: 180000 },
+        { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 220000 },
+      ],
       isActive: true,
     });
   }
@@ -341,6 +415,31 @@ export async function seedDemo(uri = env.MONGODB_URI) {
       });
     }
     return bk;
+  };
+
+  // Helper function to create valid court block
+  const createCourtBlockDoc = async (data) => {
+    let cb = await CourtBlock.findOne({
+      courtId: data.courtId,
+      bookingDate: data.bookingDate,
+      startTime: data.startTime,
+    });
+    if (!cb) {
+      const startMinutes = parseTimeToMinutes(data.startTime);
+      const endMinutes = parseTimeToMinutes(data.endTime);
+      cb = await CourtBlock.create({
+        courtId: data.courtId,
+        bookingDate: data.bookingDate,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        startMinutes,
+        endMinutes,
+        reason: data.reason,
+        createdBy: data.createdBy,
+        isActive: true,
+      });
+    }
+    return cb;
   };
 
   // 5. Booking Scenario (Testing all states and financial calculations)
@@ -655,6 +754,109 @@ export async function seedDemo(uri = env.MONGODB_URI) {
       status: 'PENDING',
     });
   }
+
+  // 5.6. Today Active Hold Booking (Testing HOLD status on Hanoi Court 1)
+  const brHold = await createBookingRequestDoc({
+    requestNumber: 'REQ-DEMO-HOLD-01',
+    customerId: customerBinh._id,
+    createdBy: customerBinh._id,
+    courtId: courtHN1._id,
+    facilityId: facilityHanoi._id,
+    bookingDate: todayStr,
+    totalAmountVnd: 100000,
+    holdExpiresAt: new Date(Date.now() + 15 * 60 * 1000), // active hold for next 15 mins
+    contactName: customerBinh.fullName,
+    contactPhone: customerBinh.phoneNumber,
+  });
+
+  await createBookingDoc({
+    bookingRequestId: brHold._id,
+    bookingCode: 'DEMO-HOLD-01',
+    customerId: customerBinh._id,
+    facilityId: facilityHanoi._id,
+    courtId: courtHN1._id,
+    bookingDate: todayStr,
+    startTime: '10:00',
+    endTime: '11:00',
+    pricePerHourVnd: 100000,
+    totalPriceVnd: 100000,
+    allocatedAmountVnd: 100000,
+    status: 'PENDING_PAYMENT',
+    paymentStatus: 'UNPAID',
+    holdExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    contactName: customerBinh.fullName,
+    contactPhone: customerBinh.phoneNumber,
+    snapshot: {
+      facilityName: facilityHanoi.name,
+      facilityAddress: facilityHanoi.address,
+      courtName: courtHN1.name,
+      sportName: 'Cầu lông',
+      slotStepMinutes: 30,
+    },
+  });
+
+  // 5.7. Today Court Block (Testing BLOCKED status on Hanoi Court 2)
+  await createCourtBlockDoc({
+    courtId: courtHN2._id,
+    bookingDate: todayStr,
+    startTime: '14:00',
+    endTime: '16:00',
+    reason: 'Bảo trì thay thế thảm thi đấu và kiểm tra đèn chiếu sáng',
+    createdBy: ownerHanoi._id,
+  });
+
+  // 5.8. Today Confirmed Booking on Pickleball (Testing Pickleball multi-sport schedule)
+  const brPK1 = await createBookingRequestDoc({
+    requestNumber: 'REQ-DEMO-PK1-01',
+    customerId: customerAn._id,
+    createdBy: customerAn._id,
+    courtId: courtPK1._id,
+    facilityId: facilityHanoi._id,
+    bookingDate: todayStr,
+    totalAmountVnd: 240000,
+    contactName: customerAn.fullName,
+    contactPhone: customerAn.phoneNumber,
+  });
+
+  const poPK1 = await createPaymentOrderDoc({
+    bookingRequestId: brPK1._id,
+    vnpayTxnRef: 'TXN-DEMO-PK1-01',
+    expectedAmountVnd: 240000,
+    status: 'PAID',
+  });
+
+  await createPaymentTxnDoc({
+    paymentOrderId: poPK1._id,
+    vnpayTransactionNo: 'VNPAY-DEMO-TXN-PK1',
+    vnpayTxnRef: poPK1.vnpayTxnRef,
+    amountVnd: 240000,
+    payDate: now,
+  });
+
+  await createBookingDoc({
+    bookingRequestId: brPK1._id,
+    bookingCode: 'DEMO-TODAY-CONFIRMED-PK1',
+    customerId: customerAn._id,
+    facilityId: facilityHanoi._id,
+    courtId: courtPK1._id,
+    bookingDate: todayStr,
+    startTime: '08:00',
+    endTime: '10:00',
+    pricePerHourVnd: 120000,
+    totalPriceVnd: 240000,
+    allocatedAmountVnd: 240000,
+    status: 'CONFIRMED',
+    paymentStatus: 'PAID',
+    contactName: customerAn.fullName,
+    contactPhone: customerAn.phoneNumber,
+    snapshot: {
+      facilityName: facilityHanoi.name,
+      facilityAddress: facilityHanoi.address,
+      courtName: courtPK1.name,
+      sportName: 'Pickleball',
+      slotStepMinutes: 60,
+    },
+  });
 
   // 6. Exception PaymentTransaction (REQUIRES_ACTION for Admin inspection)
   const exceptionTxn = await createPaymentTxnDoc({

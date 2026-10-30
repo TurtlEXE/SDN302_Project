@@ -48,6 +48,46 @@ export class ScheduleRepository {
       .session(session)
       .lean();
   }
+
+  /**
+   * Finds active bookings across multiple courts on a given date (B04 batching).
+   *
+   * @param {Array<string|import('mongoose').Types.ObjectId>} courtIds
+   * @param {string} bookingDate - 'YYYY-MM-DD'
+   * @param {import('mongoose').ClientSession} [session=null]
+   * @returns {Promise<Array<Object>>}
+   */
+  async findActiveBookingsForCourtsAndDate(courtIds, bookingDate, session = null) {
+    if (!courtIds || courtIds.length === 0) return [];
+    return Booking.find({
+      courtId: { $in: courtIds },
+      bookingDate,
+      status: { $in: ['PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
+    })
+      .select('courtId bookingDate startTime endTime startMinutes endMinutes durationMinutes status holdExpiresAt')
+      .session(session)
+      .lean();
+  }
+
+  /**
+   * Finds active court blocks across multiple courts on a given date (B04 batching).
+   *
+   * @param {Array<string|import('mongoose').Types.ObjectId>} courtIds
+   * @param {string} bookingDate - 'YYYY-MM-DD'
+   * @param {import('mongoose').ClientSession} [session=null]
+   * @returns {Promise<Array<Object>>}
+   */
+  async findActiveCourtBlocksForCourtsAndDate(courtIds, bookingDate, session = null) {
+    if (!courtIds || courtIds.length === 0) return [];
+    return CourtBlock.find({
+      courtId: { $in: courtIds },
+      bookingDate,
+      isActive: true,
+    })
+      .select('courtId bookingDate startTime endTime startMinutes endMinutes reason isActive')
+      .session(session)
+      .lean();
+  }
 }
 
 export const scheduleRepository = new ScheduleRepository();

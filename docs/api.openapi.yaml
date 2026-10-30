@@ -505,6 +505,53 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /facilities/{id}/schedule:
+    get:
+      operationId: getFacilitySchedule
+      tags: [Facilities, Schedules]
+      summary: Lịch tổng hợp của cơ sở thể thao theo ngày (tất cả môn và sân con - B04)
+      description: Trả về trạng thái các ô giờ của toàn bộ sân con thuộc cơ sở trong ngày chỉ định, nhóm theo FacilitySport.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID cơ sở thể thao (Facility ID)
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+            example: '2026-11-05'
+          description: Ngày chơi định dạng YYYY-MM-DD (Asia/Ho_Chi_Minh)
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [CUSTOMER, OWNER]
+            default: CUSTOMER
+          description: Vai trò truy vấn lịch
+      responses:
+        '200':
+          description: Lịch tổng hợp theo nhóm môn và sân con.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FacilityScheduleDTO'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /courts/{id}/schedule:
     get:
       operationId: getCourtSchedule
@@ -2684,6 +2731,16 @@ components:
         bookingDate:
           type: string
           example: '2026-11-05'
+        dayOfWeek:
+          type: string
+          example: 'thursday'
+        dayType:
+          type: string
+          enum: [WEEKDAY, WEEKEND]
+          example: 'WEEKDAY'
+        isOpen:
+          type: boolean
+          example: true
         openTime:
           type: string
           example: '06:00'
@@ -2696,8 +2753,14 @@ components:
         pricePerHourVnd:
           type: integer
           example: 120000
+        priceVersion:
+          type: integer
+          example: 1
         configVersion:
           type: integer
+        operatingHoursVersion:
+          type: integer
+          example: 1
         slots:
           type: array
           items:
@@ -2711,7 +2774,95 @@ components:
                 example: '06:30'
               status:
                 type: string
-                enum: [AVAILABLE, HOLD, BOOKED, BLOCKED, PAST]
+                enum: [AVAILABLE, HOLD, BOOKED, BLOCKED, PAST, NO_PRICE]
+              priceVnd:
+                type: integer
+                nullable: true
+                example: 60000
+
+    FacilityScheduleDTO:
+      type: object
+      properties:
+        facilityId:
+          type: string
+        facilityName:
+          type: string
+        bookingDate:
+          type: string
+          example: '2026-11-05'
+        dayOfWeek:
+          type: string
+          example: 'thursday'
+        dayType:
+          type: string
+          enum: [WEEKDAY, WEEKEND]
+          example: 'WEEKDAY'
+        isOpen:
+          type: boolean
+          example: true
+        openTime:
+          type: string
+          nullable: true
+          example: '06:00'
+        closeTime:
+          type: string
+          nullable: true
+          example: '22:00'
+        operatingHoursVersion:
+          type: integer
+          example: 1
+        sports:
+          type: array
+          items:
+            type: object
+            properties:
+              facilitySportId:
+                type: string
+              sportId:
+                type: string
+              sportName:
+                type: string
+                example: 'Cầu lông'
+              slotStepMinutes:
+                type: integer
+                example: 30
+              configVersion:
+                type: integer
+                example: 1
+              courts:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    courtId:
+                      type: string
+                    courtName:
+                      type: string
+                      example: 'Sân 1'
+                    pricePerHourVnd:
+                      type: integer
+                      example: 80000
+                    priceVersion:
+                      type: integer
+                      example: 1
+                    slots:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          startTime:
+                            type: string
+                            example: '06:00'
+                          endTime:
+                            type: string
+                            example: '06:30'
+                          status:
+                            type: string
+                            enum: [AVAILABLE, HOLD, BOOKED, BLOCKED, PAST, NO_PRICE]
+                          priceVnd:
+                            type: integer
+                            nullable: true
+                            example: 40000
 
     CreateBookingRequest:
       type: object
@@ -2725,6 +2876,15 @@ components:
         configVersion:
           type: integer
           example: 1
+        operatingHoursVersion:
+          type: integer
+          example: 1
+        priceVersion:
+          type: integer
+          example: 1
+        expectedAmountVnd:
+          type: integer
+          example: 120000
         selectedSlots:
           type: array
           description: Danh sách các ô giờ được chọn (sẽ được tự động gộp thành các khoảng liên tục)
@@ -2981,6 +3141,9 @@ components:
           type: string
         configVersion:
           type: integer
+        operatingHoursVersion:
+          type: integer
+          example: 1
         selectedSlots:
           type: array
           items:
