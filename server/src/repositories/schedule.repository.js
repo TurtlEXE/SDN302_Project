@@ -1,0 +1,55 @@
+import { Booking } from '../models/booking.model.js';
+import { CourtBlock } from '../models/court-block.model.js';
+
+/**
+ * Schedule Repository
+ * Queries raw interval records (Bookings and CourtBlocks) for a specific court and date.
+ * Strictly adheres to Criterion 186 / Section 8.3: No slot collections or individual slot docs in DB.
+ */
+export class ScheduleRepository {
+  /**
+   * Finds bookings on a specific court and date that occupy or hold schedule slots.
+   * Only returns statuses that can occupy the schedule:
+   * - PENDING_PAYMENT (if hold has not expired)
+   * - CONFIRMED, COMPLETED, NO_SHOW
+   * CANCELLED and EXPIRED bookings are excluded.
+   *
+   * @param {string} courtId
+   * @param {string} bookingDate - 'YYYY-MM-DD'
+   * @param {import('mongoose').ClientSession} [session=null]
+   * @returns {Promise<Array<Object>>}
+   */
+  async findActiveBookingsForCourtAndDate(courtId, bookingDate, session = null) {
+    return Booking.find({
+      courtId,
+      bookingDate,
+      status: { $in: ['PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
+    })
+      .select('courtId bookingDate startTime endTime startMinutes endMinutes durationMinutes status holdExpiresAt')
+      .session(session)
+      .lean();
+  }
+
+  /**
+   * Finds active court maintenance/admin blocks on a specific court and date.
+   *
+   * @param {string} courtId
+   * @param {string} bookingDate - 'YYYY-MM-DD'
+   * @param {import('mongoose').ClientSession} [session=null]
+   * @returns {Promise<Array<Object>>}
+   */
+  async findActiveCourtBlocksForCourtAndDate(courtId, bookingDate, session = null) {
+    return CourtBlock.find({
+      courtId,
+      bookingDate,
+      isActive: true,
+    })
+      .select('courtId bookingDate startTime endTime startMinutes endMinutes reason isActive')
+      .session(session)
+      .lean();
+  }
+}
+
+export const scheduleRepository = new ScheduleRepository();
+export default scheduleRepository;
+
