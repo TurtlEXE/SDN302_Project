@@ -1,4 +1,5 @@
 import { EmailOutbox } from '../models/email-outbox.model.js';
+import { parsePagination, formatPaginatedResponse } from '../utils/pagination.js';
 
 export class EmailOutboxRepository {
   /**
@@ -128,6 +129,66 @@ export class EmailOutboxRepository {
    */
   async countPending() {
     return EmailOutbox.countDocuments({ status: 'PENDING' });
+  }
+
+  /**
+   * Finds paginated outbox messages with optional filters
+   * @param {object} filter
+   * @param {string} [filter.status]
+   * @param {string} [filter.eventType]
+   * @param {string} [filter.recipientEmail]
+   * @param {number} [filter.page=1]
+   * @param {number} [filter.limit=20]
+   * @returns {Promise<{ items: Array, pagination: object }>}
+   */
+  async findPaginated(filter = {}) {
+    const { page, limit, skip } = parsePagination(filter);
+    const query = {};
+
+    if (filter.status) {
+      query.status = filter.status;
+    }
+    if (filter.eventType) {
+      query.eventType = filter.eventType;
+    }
+    if (filter.recipientEmail) {
+      query.recipientEmail = filter.recipientEmail.toLowerCase().trim();
+    }
+
+    const [items, total] = await Promise.all([
+      EmailOutbox.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      EmailOutbox.countDocuments(query).exec(),
+    ]);
+
+    const formattedItems = items.map((item) => this.toDTO(item));
+    return formatPaginatedResponse(formattedItems, total, page, limit);
+  }
+
+  /**
+   * Converts an outbox document to clean DTO hiding sensitive secrets (Criterion 43)
+   * @param {object} doc
+   * @returns {object} EmailOutboxDTO
+   */
+  toDTO(doc) {
+    if (!doc) return null;
+    return {
+      id: doc._id.toString(),
+      eventType: doc.eventType,
+      recipientEmail: doc.recipientEmail,
+      recipientName: doc.recipientName || '',
+      subject: doc.subject,
+      status: doc.status,
+      retryCount: doc.retryCount,
+      lastError: doc.lastError || null,
+      sentAt: doc.sentAt ? doc.sentAt.toISOString() : null,
+      nextRetryAt: doc.nextRetryAt ? doc.nextRetryAt.toISOString() : null,
+      createdAt: doc.createdAt ? doc.createdAt.toISOString() : null,
+    };
   }
 }
 

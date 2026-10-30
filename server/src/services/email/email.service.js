@@ -1,7 +1,11 @@
+import mongoose from 'mongoose';
 import { emailOutboxRepository } from '../../repositories/email-outbox.repository.js';
+import { actionLogRepository } from '../../repositories/action-log.repository.js';
 import { mailClient } from '../../integrations/mail.client.js';
 import { renderEmail } from '../../templates/emails/index.js';
 import { logger } from '../../utils/logger.js';
+import { AppError } from '../../errors/app-error.js';
+import { ERROR_CODES } from '../../errors/error-codes.js';
 
 export const MAX_EMAIL_RETRIES = 3;
 
@@ -169,6 +173,75 @@ export class EmailService {
     }
 
     return { processed, sent, failed };
+  }
+
+  /**
+   * Admin triggers retry for a failed or pending outbox email (ADM-07, Criterion 40, 41)
+   * - Prohibits resending emails with expired links (ADM-07: users must request a new link)
+   * - Resets status to PENDING and triggers immediate attempt
+   * - Records ActionLog audit entry
+   *
+   * @param {string} id - EmailOutbox ID
+   * @param {Object} [adminUser] - Authenticated admin user
+   * @returns {Promise<{ success: boolean, message: string }>}
+   */
+  async retryMessage(id, adminUser = null) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      throw AppError.badRequest('ID email outbox không hợp lệ.', ERROR_CODES.VALIDATION_ERROR);
+    }
+
+    const message = await this.repository.findById(id);
+    if (!message) {
+      throw AppError.notFound('Không tìm thấy bản ghi email trong hàng đợi.', ERROR_CODES.NOT_FOUND);
+    }
+
+    // Refuse resending if token is already expired (ADM-07, Section 8.5)
+    if (message.templateData && message.templateData.expiresAt) {
+      const expiresAt = new Date(message.templateData.expiresAt);
+      if (expiresAt <= new Date()) {
+        throw AppError.badRequest(
+          'Liên kết trong email đã hết hạn, không thể gửi lại. Người dùng cần yêu cầu cấp mới qua đúng luồng xác thực/kích hoạt/đặt lại mật khẩu.',
+          ERROR_CODES.VALIDATION_ERROR
+        );
+      }
+    }
+
+    const previousStatus = message.status;
+    message.status = 'PENDING';
+    message.lockedUntil = null;
+    message.nextRetryAt = new Date();
+    message.lastError = null;
+    await message.save();
+
+    if (adminUser) {
+      await actionLogRepository.create({
+        actorId: adminUser._id,
+        actorRole: 'ADMIN',
+        targetType: 'EMAIL_OUTBOX',
+        targetId: message._id,
+        action: 'RETRY_EMAIL_OUTBOX',
+        reason: 'Quản trị viên kích hoạt gửi lại email',
+        previousState: { status: previousStatus },
+        newState: { status: 'PENDING' },
+      });
+    }
+
+    // Attempt processing immediately
+    await this.processMessage(message);
+
+    return {
+      success: true,
+      message: 'Đã kích hoạt gửi lại email thành công.',
+    };
+  }
+
+  /**
+   * Retrieves paginated email outbox entries for administrative monitoring
+   * @param {Object} queryParams
+   * @returns {Promise<{ items: Array, pagination: Object }>}
+   */
+  async listOutboxMessages(queryParams = {}) {
+    return this.repository.findPaginated(queryParams);
   }
 }
 

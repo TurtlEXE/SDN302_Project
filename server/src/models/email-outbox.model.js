@@ -19,8 +19,11 @@ const emailOutboxSchema = new Schema(
         'BOOKING_CONFIRMED',
         'BOOKING_CANCELLED',
         'HOLD_EXPIRED',
+        'BOOKING_COMPLETED',
+        'BOOKING_NO_SHOW',
         'REFUND_PROCESSED',
         'ACCOUNT_LOCKED',
+        'ACCOUNT_UNLOCKED',
       ],
     },
     recipientEmail: {

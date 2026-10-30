@@ -2,6 +2,8 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { corsOptions } from './config/cors.js';
 import { generalRateLimiter } from './middlewares/rate-limit.js';
 import { notFound } from './middlewares/not-found.js';
@@ -9,6 +11,10 @@ import { errorHandler } from './middlewares/error-handler.js';
 import { checkDatabaseHealth } from './config/database.js';
 import { env } from './config/env.js';
 import apiRoutes from './routes/index.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDir = path.resolve(__dirname, '../uploads');
 
 const app = express();
 
@@ -20,6 +26,9 @@ app.use(cors(corsOptions));
 
 // Cookie Parsing
 app.use(cookieParser());
+
+// Static uploads serving
+app.use('/uploads', express.static(uploadsDir));
 
 // Body Parsing
 app.use(express.json({ limit: '10mb' }));
