@@ -22,13 +22,17 @@ export class ScheduleService {
    *
    * @param {string} courtId
    * @param {string} dateStr - 'YYYY-MM-DD'
-   * @param {Object} [timeOverrides=null] - Optional overrides for unit/integration testing { customTodayStr, customNowTimeStr, customNowDate }
+   * @param {Object} [timeOverrides=null] - Optional overrides for unit/integration testing { customTodayStr, customNowTimeStr, customNowDate, role }
+   * @param {Object} [options={}] - Optional options { forRole: 'CUSTOMER' | 'OWNER' }
    * @returns {Promise<Object>} CourtScheduleDTO
    */
-  async getCourtSchedule(courtId, dateStr, timeOverrides = null) {
+  async getCourtSchedule(courtId, dateStr, timeOverrides = null, options = {}) {
     const todayStr = timeOverrides?.customTodayStr || getCurrentDateVN();
     const nowTimeStr = timeOverrides?.customNowTimeStr || getCurrentTimeVN();
     const now = timeOverrides?.customNowDate || new Date();
+    const role = options?.forRole || timeOverrides?.role || 'CUSTOMER';
+    const isOwner = role === 'OWNER';
+    const minAdvanceMinutes = isOwner ? 0 : 15;
 
     // 1. Validate date range (today up to 30 days ahead)
     validateBookingDateRange(dateStr, 30, todayStr);
@@ -97,9 +101,13 @@ export class ScheduleService {
           slot.endMinutes > booking.startMinutes
       );
 
-      // Check PAST: date is past or today with startMinutes <= nowMinutes
+      // Check PAST: date is past or today with startMinutes < nowMinutes + minAdvanceMinutes
+      // Owner can book upcoming slots with minAdvance=0 (slot.startMinutes <= nowMinutes is past)
+      // Customer requires >= 15 min advance notice (slot.startMinutes < nowMinutes + 15 is past, Criterion 11)
       const isPast =
-        dateStr < todayStr || (dateStr === todayStr && slot.startMinutes <= nowMinutes);
+        dateStr < todayStr ||
+        (dateStr === todayStr &&
+          (isOwner ? slot.startMinutes <= nowMinutes : slot.startMinutes < nowMinutes + minAdvanceMinutes));
 
       let status = 'AVAILABLE';
       if (isBlocked) {

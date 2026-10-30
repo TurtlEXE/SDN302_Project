@@ -136,4 +136,23 @@ export function authorize(...allowedRoles) {
   };
 }
 
-export default { authenticate, authorize };
+/**
+ * Optional Authentication Middleware
+ * If Authorization Bearer token is provided and valid, attaches req.user and req.authSession.
+ * If no token or invalid token, quietly proceeds without error.
+ */
+export async function optionalAuthenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return next();
+  }
+  return authenticate(req, res, (err) => {
+    if (err) {
+      req.user = null;
+      req.authSession = null;
+    }
+    next();
+  });
+}
+
+export default { authenticate, authorize, optionalAuthenticate };

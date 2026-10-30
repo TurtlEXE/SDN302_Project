@@ -526,6 +526,14 @@ paths:
             format: date
             example: '2026-11-05'
           description: Ngày chơi định dạng YYYY-MM-DD (Asia/Ho_Chi_Minh)
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [CUSTOMER, OWNER]
+            default: CUSTOMER
+          description: Vai trò truy vấn lịch (CUSTOMER yêu cầu >= 15 phút báo trước; OWNER cho phép đặt sát giờ với minAdvance = 0)
       responses:
         '200':
           description: Lưới lịch ô giờ và trạng thái chi tiết của sân.
@@ -2846,15 +2854,35 @@ components:
           type: string
         requestNumber:
           type: string
+        contactName:
+          type: string
+        contactPhone:
+          type: string
         facilityName:
           type: string
         courtName:
           type: string
         bookingDate:
           type: string
-        timeRanges:
+        startTime:
           type: string
-          example: 08:00–09:30
+        endTime:
+          type: string
+        intervals:
+          type: array
+          items:
+            type: object
+            properties:
+              startTime:
+                type: string
+              endTime:
+                type: string
+              durationMinutes:
+                type: integer
+              totalPriceVnd:
+                type: integer
+        totalAmountVnd:
+          type: integer
         amountVnd:
           type: integer
         status:

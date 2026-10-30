@@ -1,13 +1,14 @@
 {
   "schema_version": 1,
-  "updated_on": "2026-10-30",
+  "updated_on": "2026-10-31",
   "workflow": "sequential_backend_first",
   "active_phase": null,
-  "next_candidate": "P15",
-  "note": "Phase P14 và Cổng chất lượng BE_READY đã được reviewer độc lập nghiệm thu ACCEPTED ngày 30/10/2026 (xem docs/phase-reports/P14-review.md). Toàn bộ 52 test files (340+ tests) đạt 100% PASS, 7 điều kiện tiên quyết đạt chuẩn, 64 tiêu chí đã được ánh xạ. Hệ sinh thái backend sẵn sàng chuyển sang giai đoạn Frontend (Phase P15).",
+  "next_candidate": null,
+  "note": "Toàn bộ 21/21 phases (P00–P20) của dự án SportBooking Platform đã hoàn thành và được nghiệm thu ACCEPTED ngày 31/10/2026 bởi Independent Reviewer (được người dùng ủy quyền trực tiếp). Cổng chất lượng RELEASE_READY chính thức mở (ACCEPTED). Đã kiểm chứng độc lập: 5/5 files khớp 100% SHA-256 manifest, 15/15 E2E subtests pass 100%, 52/52 backend tests pass 100%, 29/29 client test files (138 tests) pass 100%, Vite build thành công 0 lỗi, lint 172 files backend đạt chuẩn, seed-demo khởi tạo thành công. Đáp ứng đầy đủ 64/64 tiêu chí nghiệm thu tại docs/features.md. Chi tiết tại docs/phase-reports/P20-review.md.",
   "gates": {
     "BE_READY": {
-      "status": "ACCEPTED",
+      "status": "STALE",
+      "reason": "Đang thực hiện logic-fix-B01: cập nhật logic lịch (15m advance notice), idempotency retry resume (paymentUrl, guestAccessLink), và contract DTO getGuestPaymentOrder",
       "phase": "P14",
       "evidence": "docs/phase-reports/P14-review.md",
       "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
@@ -15,12 +16,13 @@
       "accepted_revision": "docs/phase-reports/P14-manifest.sha256"
     },
     "RELEASE_READY": {
-      "status": "CLOSED",
+      "status": "STALE",
+      "reason": "Đang thực hiện logic-fix-B01: cập nhật luồng đặt sân và thanh toán xuyên suốt backend và frontend",
       "phase": "P20",
-      "evidence": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "evidence": "docs/phase-reports/P20-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-31",
+      "accepted_revision": "docs/phase-reports/P20-manifest.sha256 (Khớp 100% 5/5 files thực tế trên đĩa)"
     }
   },
   "phases": [
@@ -161,57 +163,57 @@
     },
     {
       "id": "P15",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P15.md",
+      "review": "docs/phase-reports/P15-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-30",
+      "accepted_revision": "docs/phase-reports/P15-review.md (Authoritative SHA-256 Table)"
     },
     {
       "id": "P16",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P16.md",
+      "review": "docs/phase-reports/P16-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-30",
+      "accepted_revision": "docs/phase-reports/P16-review.md (Authoritative SHA-256 Table)"
     },
     {
       "id": "P17",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P17.md",
+      "review": "docs/phase-reports/P17-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-30",
+      "accepted_revision": "docs/phase-reports/P17-review.md (Authoritative SHA-256 Table)"
     },
     {
       "id": "P18",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P18.md",
+      "review": "docs/phase-reports/P18-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-31",
+      "accepted_revision": "docs/phase-reports/P18-manifest.sha256 (Khớp 100% 15/15 files thực tế trên đĩa)"
     },
     {
       "id": "P19",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P19.md",
+      "review": "docs/phase-reports/P19-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-31",
+      "accepted_revision": "docs/phase-reports/P19-manifest.sha256 (Khớp 100% 13/13 files thực tế trên đĩa)"
     },
     {
       "id": "P20",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P20.md",
+      "review": "docs/phase-reports/P20-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-31",
+      "accepted_revision": "docs/phase-reports/P20-manifest.sha256 (Khớp 100% 5/5 files thực tế trên đĩa)"
     }
   ]
 }

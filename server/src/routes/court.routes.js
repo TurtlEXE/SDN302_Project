@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { scheduleController } from '../controllers/schedule.controller.js';
+import { optionalAuthenticate } from '../middlewares/auth.js';
 
 const router = Router();
 
@@ -9,7 +10,11 @@ const router = Router();
  */
 
 // GET /api/v1/courts/:id/schedule?date=YYYY-MM-DD
-router.get('/:id/schedule', scheduleController.getCourtSchedule.bind(scheduleController));
+router.get(
+  '/:id/schedule',
+  optionalAuthenticate,
+  scheduleController.getCourtSchedule.bind(scheduleController)
+);
 
 export default router;
 

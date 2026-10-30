@@ -354,6 +354,10 @@ test('VNPay Payment Flow & IPN Callback (Integration - P11)', async (t) => {
     assert.equal(successRes.body.success, true);
     assert.equal(successRes.body.data.paymentOrderId, paymentOrder.paymentOrderId);
     assert.equal(successRes.body.data.totalAmountVnd, 120000);
+    assert.equal(successRes.body.data.contactName, 'Khach Vang Lai C');
+    assert.equal(successRes.body.data.contactPhone, '0912345678');
+    assert.ok(Array.isArray(successRes.body.data.intervals));
+    assert.equal(successRes.body.data.intervals.length, 1);
     assert.equal(successRes.body.data.status, 'PENDING');
     assert.ok(successRes.body.data.paymentUrl.includes('vnp_Amount=12000000'));
   });

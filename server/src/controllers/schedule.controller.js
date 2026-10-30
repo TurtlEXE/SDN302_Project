@@ -10,7 +10,7 @@ export class ScheduleController {
   async getCourtSchedule(req, res, next) {
     try {
       const { id } = req.params;
-      const { date } = req.query;
+      const { date, role } = req.query;
 
       if (!date) {
         throw AppError.badRequest(
@@ -19,7 +19,13 @@ export class ScheduleController {
         );
       }
 
-      const scheduleDTO = await scheduleService.getCourtSchedule(id, date);
+      // Check role: authenticated user role or query role for OWNER
+      const effectiveRole =
+        req.user?.role === 'OWNER' || role === 'OWNER' ? 'OWNER' : 'CUSTOMER';
+
+      const scheduleDTO = await scheduleService.getCourtSchedule(id, date, null, {
+        forRole: effectiveRole,
+      });
 
       return res.status(200).json({
         success: true,

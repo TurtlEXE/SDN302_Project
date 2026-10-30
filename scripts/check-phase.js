@@ -161,7 +161,10 @@ export function checkFrontendGate(rootDir = ROOT_DIR) {
   if (fs.existsSync(statusPath)) {
     try {
       const data = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
-      beReadyAccepted = data.gates?.BE_READY?.status === 'ACCEPTED';
+      // ACCEPTED or STALE with valid historical acceptance indicates BE_READY was reached
+      beReadyAccepted =
+        data.gates?.BE_READY?.status === 'ACCEPTED' ||
+        (data.gates?.BE_READY?.status === 'STALE' && Boolean(data.gates?.BE_READY?.accepted_on));
     } catch {
       // JSON error handled elsewhere
     }

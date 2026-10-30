@@ -492,4 +492,59 @@ test('Court Schedule API - GET /api/v1/courts/:id/schedule (Integration)', async
       .expect(404);
     assert.equal(resPaused.body.error.code, 'FACILITY_NOT_FOUND');
   });
+
+  await t.test('11. Customer role treats slots starting in under 15 min as PAST (Issue 7 & Criterion 11)', async () => {
+    // Service level test with fixed timeOverrides
+    const { scheduleService } = await import('../../src/services/booking/schedule.service.js');
+    const todayStr = '2026-11-01';
+    // Now is 10:00 (600 minutes)
+    // Slot 10:00-10:30 (start 600) -> 0 min away (< 15) -> PAST for customer
+    // Slot 10:10-10:40 (start 610) -> 10 min away (< 15) -> PAST for customer
+    // Slot 10:15-10:45 (start 615) -> 15 min away (>= 15) -> AVAILABLE
+    // Slot 10:30-11:00 (start 630) -> 30 min away (>= 15) -> AVAILABLE
+    const customerDTO = await scheduleService.getCourtSchedule(court1._id.toString(), todayStr, {
+      customTodayStr: todayStr,
+      customNowTimeStr: '10:00',
+      customNowDate: new Date('2026-11-01T10:00:00+07:00'),
+      role: 'CUSTOMER',
+    });
+
+    const slotMap = new Map(customerDTO.slots.map((s) => [`${s.startTime}-${s.endTime}`, s.status]));
+    assert.equal(slotMap.get('09:30-10:00'), 'PAST');
+    assert.equal(slotMap.get('10:00-10:30'), 'PAST');
+    assert.equal(slotMap.get('10:30-11:00'), 'AVAILABLE');
+  });
+
+  await t.test('12. Owner role allows booking slots starting in under 15 min (minAdvance = 0, Issue 7)', async () => {
+    const { scheduleService } = await import('../../src/services/booking/schedule.service.js');
+    const todayStr = '2026-11-01';
+    // Now is 10:05 (605 minutes)
+    // Slot 10:00-10:30 (start 600 <= 605) -> PAST (already started)
+    // Slot 10:30-11:00 (start 630 > 605) -> 25 min away -> AVAILABLE
+    // For facility with 30m step:
+    // With now at 10:20 (620 minutes):
+    // Slot 10:30-11:00 starts in 10 minutes (630 > 620).
+    // For customer: 630 - 620 = 10 < 15 -> PAST
+    // For owner: 630 > 620 -> AVAILABLE!
+    const ownerDTO = await scheduleService.getCourtSchedule(court1._id.toString(), todayStr, {
+      customTodayStr: todayStr,
+      customNowTimeStr: '10:20',
+      customNowDate: new Date('2026-11-01T10:20:00+07:00'),
+      role: 'OWNER',
+    });
+
+    const customerDTO = await scheduleService.getCourtSchedule(court1._id.toString(), todayStr, {
+      customTodayStr: todayStr,
+      customNowTimeStr: '10:20',
+      customNowDate: new Date('2026-11-01T10:20:00+07:00'),
+      role: 'CUSTOMER',
+    });
+
+    const ownerSlotMap = new Map(ownerDTO.slots.map((s) => [`${s.startTime}-${s.endTime}`, s.status]));
+    const customerSlotMap = new Map(customerDTO.slots.map((s) => [`${s.startTime}-${s.endTime}`, s.status]));
+
+    // Slot 10:30-11:00 is 10 mins from 10:20
+    assert.equal(ownerSlotMap.get('10:30-11:00'), 'AVAILABLE'); // Owner can book!
+    assert.equal(customerSlotMap.get('10:30-11:00'), 'PAST'); // Customer cannot book!
+  });
 });

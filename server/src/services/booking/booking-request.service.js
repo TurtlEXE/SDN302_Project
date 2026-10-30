@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { env } from '../../config/env.js';
 import { bookingRequestRepository } from '../../repositories/booking-request.repository.js';
 import { bookingRepository } from '../../repositories/booking.repository.js';
 import { paymentOrderRepository } from '../../repositories/payment-order.repository.js';
@@ -57,6 +58,24 @@ export function computePayloadFingerprint({
   ].join('|');
 
   return crypto.createHash('sha256').update(canonicalString).digest('hex');
+}
+
+/**
+ * Computes a deterministic guest access code derived from a server-side HMAC secret
+ * and unique bookingRequestId + idempotencyKey (Section 8.3.3, Criterion 52).
+ * Plaintext secret is NEVER stored in database; sha256 hash is stored.
+ *
+ * @param {string|mongoose.Types.ObjectId} bookingRequestId
+ * @param {string} idempotencyKey
+ * @returns {string} 32-character hexadecimal code
+ */
+export function deriveGuestAccessCode(bookingRequestId, idempotencyKey) {
+  const secret = env.JWT_ACCESS_SECRET || 'sport-booking-guest-secret-min32chars';
+  return crypto
+    .createHmac('sha256', secret)
+    .update(`guest-access:${bookingRequestId.toString()}:${idempotencyKey.trim()}`)
+    .digest('hex')
+    .slice(0, 32);
 }
 
 /**
@@ -148,15 +167,138 @@ export class BookingRequestService {
 
       if (existingRequest) {
         if (existingRequest.payloadFingerprint === payloadFingerprint) {
-          // Idempotent hit: return existing created result
+          // Idempotent hit: safely resume order without extending hold or creating new records
           const existingBookings = await bookingRepository.findByRequestId(existingRequest._id, session);
           const existingPaymentOrder = await paymentOrderRepository.findByBookingRequestId(existingRequest._id, session);
+
+          const now = new Date();
+          const isHoldExpired =
+            now >= new Date(existingRequest.holdExpiresAt) ||
+            existingPaymentOrder?.status === 'EXPIRED';
+          const isPaid =
+            existingPaymentOrder?.status === 'PAID' ||
+            existingRequest.status === 'CONFIRMED';
+          const isCancelled =
+            existingRequest.status === 'CANCELLED' ||
+            existingPaymentOrder?.status === 'CANCELLED';
+
+          let rawGuestAccessCode = null;
+          let guestAccessLink = undefined;
+          if (source === 'OWNER_ON_BEHALF' && existingPaymentOrder) {
+            rawGuestAccessCode = deriveGuestAccessCode(
+              existingRequest._id,
+              existingRequest.idempotencyKey
+            );
+            guestAccessLink = `/guest-pay/${existingPaymentOrder._id}?code=${rawGuestAccessCode}`;
+          }
+
+          // Case 1: Already paid
+          if (isPaid) {
+            return {
+              bookingRequestId: existingRequest._id.toString(),
+              requestNumber: existingRequest.requestNumber,
+              totalAmountVnd: existingRequest.totalAmountVnd,
+              holdExpiresAt: existingRequest.holdExpiresAt.toISOString(),
+              status: 'PAID',
+              isPaid: true,
+              bookings: existingBookings.map((b) => ({
+                bookingId: b._id.toString(),
+                bookingCode: b.bookingCode,
+                startTime: b.startTime,
+                endTime: b.endTime,
+                durationMinutes: b.durationMinutes,
+                totalPriceVnd: b.totalPriceVnd,
+              })),
+              paymentOrder: existingPaymentOrder
+                ? {
+                    paymentOrderId: existingPaymentOrder._id.toString(),
+                    vnpayTxnRef: existingPaymentOrder.vnpayTxnRef,
+                    amountVnd: existingPaymentOrder.expectedAmountVnd,
+                    status: 'PAID',
+                    paymentUrl: '',
+                  }
+                : null,
+              ...(guestAccessLink ? { guestAccessLink } : {}),
+            };
+          }
+
+          // Case 2: Cancelled
+          if (isCancelled) {
+            return {
+              bookingRequestId: existingRequest._id.toString(),
+              requestNumber: existingRequest.requestNumber,
+              totalAmountVnd: existingRequest.totalAmountVnd,
+              holdExpiresAt: existingRequest.holdExpiresAt.toISOString(),
+              status: 'CANCELLED',
+              isCancelled: true,
+              bookings: existingBookings.map((b) => ({
+                bookingId: b._id.toString(),
+                bookingCode: b.bookingCode,
+                startTime: b.startTime,
+                endTime: b.endTime,
+                durationMinutes: b.durationMinutes,
+                totalPriceVnd: b.totalPriceVnd,
+              })),
+              paymentOrder: existingPaymentOrder
+                ? {
+                    paymentOrderId: existingPaymentOrder._id.toString(),
+                    vnpayTxnRef: existingPaymentOrder.vnpayTxnRef,
+                    amountVnd: existingPaymentOrder.expectedAmountVnd,
+                    status: 'CANCELLED',
+                    paymentUrl: '',
+                  }
+                : null,
+              ...(guestAccessLink ? { guestAccessLink } : {}),
+            };
+          }
+
+          // Case 3: Hold expired (do not extend hold, do not create new order)
+          if (isHoldExpired) {
+            return {
+              bookingRequestId: existingRequest._id.toString(),
+              requestNumber: existingRequest.requestNumber,
+              totalAmountVnd: existingRequest.totalAmountVnd,
+              holdExpiresAt: existingRequest.holdExpiresAt.toISOString(),
+              status: 'EXPIRED',
+              isExpired: true,
+              bookings: existingBookings.map((b) => ({
+                bookingId: b._id.toString(),
+                bookingCode: b.bookingCode,
+                startTime: b.startTime,
+                endTime: b.endTime,
+                durationMinutes: b.durationMinutes,
+                totalPriceVnd: b.totalPriceVnd,
+              })),
+              paymentOrder: existingPaymentOrder
+                ? {
+                    paymentOrderId: existingPaymentOrder._id.toString(),
+                    vnpayTxnRef: existingPaymentOrder.vnpayTxnRef,
+                    amountVnd: existingPaymentOrder.expectedAmountVnd,
+                    status: 'EXPIRED',
+                    paymentUrl: '',
+                  }
+                : null,
+              ...(guestAccessLink ? { guestAccessLink } : {}),
+            };
+          }
+
+          // Case 4: Active unexpired PENDING order -> Generate fresh live paymentUrl preserving original holdExpiresAt
+          const paymentUrl = existingPaymentOrder
+            ? vnpayClient.createPaymentUrl({
+                txnRef: existingPaymentOrder.vnpayTxnRef,
+                amountVnd: existingPaymentOrder.expectedAmountVnd,
+                orderInfo: `Thanh toan don dat san ${existingRequest.requestNumber}`,
+                createDate: existingPaymentOrder.createdAt,
+                expireDate: existingRequest.holdExpiresAt, // Preserves original hold!
+              })
+            : '';
 
           return {
             bookingRequestId: existingRequest._id.toString(),
             requestNumber: existingRequest.requestNumber,
             totalAmountVnd: existingRequest.totalAmountVnd,
             holdExpiresAt: existingRequest.holdExpiresAt.toISOString(),
+            status: 'PENDING',
             bookings: existingBookings.map((b) => ({
               bookingId: b._id.toString(),
               bookingCode: b.bookingCode,
@@ -165,15 +307,16 @@ export class BookingRequestService {
               durationMinutes: b.durationMinutes,
               totalPriceVnd: b.totalPriceVnd,
             })),
-            paymentOrder: {
-              paymentOrderId: existingPaymentOrder._id.toString(),
-              vnpayTxnRef: existingPaymentOrder.vnpayTxnRef,
-              amountVnd: existingPaymentOrder.expectedAmountVnd,
-              paymentUrl: '', // VNPay integration in P11
-            },
-            ...(source === 'OWNER_ON_BEHALF'
-              ? { guestAccessLink: `/guest-pay/${existingPaymentOrder._id}` }
-              : {}),
+            paymentOrder: existingPaymentOrder
+              ? {
+                  paymentOrderId: existingPaymentOrder._id.toString(),
+                  vnpayTxnRef: existingPaymentOrder.vnpayTxnRef,
+                  amountVnd: existingPaymentOrder.expectedAmountVnd,
+                  status: 'PENDING',
+                  paymentUrl,
+                }
+              : null,
+            ...(guestAccessLink ? { guestAccessLink } : {}),
           };
         } else {
           // Same key but different content: reject (Criterion 10)
@@ -305,17 +448,19 @@ export class BookingRequestService {
       // 4.10. Generate identifiers
       const requestNumber = generateRequestNumber(bookingDate);
       const vnpayTxnRef = generateVnpayTxnRef();
+      const bookingRequestId = new mongoose.Types.ObjectId();
 
       let guestAccessCodeHash = null;
       let rawGuestAccessCode = null;
       if (source === 'OWNER_ON_BEHALF') {
-        rawGuestAccessCode = crypto.randomBytes(24).toString('hex');
+        rawGuestAccessCode = deriveGuestAccessCode(bookingRequestId, idempotencyKey.trim());
         guestAccessCodeHash = crypto.createHash('sha256').update(rawGuestAccessCode).digest('hex');
       }
 
       // 4.11. Create BookingRequest record
       const bookingRequest = await bookingRequestRepository.create(
         {
+          _id: bookingRequestId,
           requestNumber,
           customerId: source === 'CUSTOMER_ONLINE' ? actorUser._id : null,
           createdBy: actorUser._id,

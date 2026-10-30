@@ -332,6 +332,10 @@ test('Booking Request API - Customer & Owner On-Behalf (Integration)', async (t)
     // Must return the exact same bookingRequestId and requestNumber
     assert.equal(res1.body.data.bookingRequestId, res2.body.data.bookingRequestId);
     assert.equal(res1.body.data.requestNumber, res2.body.data.requestNumber);
+    // PaymentUrl must be actively generated and unexpired (Issue 6)
+    assert.ok(res2.body.data.paymentOrder.paymentUrl);
+    assert.match(res2.body.data.paymentOrder.paymentUrl, /vnpay/);
+    assert.equal(res2.body.data.holdExpiresAt, res1.body.data.holdExpiresAt);
 
     // Verify DB count: only 1 BookingRequest was created
     const countReq = await BookingRequest.countDocuments({ idempotencyKey: 'idempotent-key-01' });
@@ -448,6 +452,7 @@ test('Booking Request API - Customer & Owner On-Behalf (Integration)', async (t)
     assert.ok(data.bookingRequestId);
     assert.ok(data.guestAccessLink);
     assert.match(data.guestAccessLink, /^\/guest-pay\//);
+    assert.match(data.guestAccessLink, /\?code=[a-f0-9]{32}/);
 
     // Verify DB record
     const dbReq = await BookingRequest.findById(data.bookingRequestId);
@@ -544,5 +549,100 @@ test('Booking Request API - Customer & Owner On-Behalf (Integration)', async (t)
 
     assert.equal(res.body.success, false);
     assert.equal(res.body.error.code, 'FORBIDDEN');
+  });
+
+  await t.test('11. Owner on-behalf idempotent retry returns valid guest link and access code works (Issue 6)', async () => {
+    const todayStr = getCurrentDateVN();
+    const bookingDate = addDaysToDateVN(todayStr, 2);
+
+    const payload = {
+      courtId: court._id.toString(),
+      bookingDate,
+      configVersion: 1,
+      selectedSlots: [{ startTime: '17:00', endTime: '17:30' }],
+      customerName: 'Khách Gọi Điện Lại',
+      customerPhone: '0912999888',
+      idempotencyKey: 'idemp-on-behalf-retry-test',
+    };
+
+    const res1 = await request(app)
+      .post('/api/v1/owner/bookings/on-behalf')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(payload)
+      .expect(201);
+
+    const link1 = res1.body.data.guestAccessLink;
+    assert.ok(link1);
+    assert.match(link1, /\?code=[a-f0-9]{32}/);
+
+    // Retry with SAME idempotencyKey
+    const res2 = await request(app)
+      .post('/api/v1/owner/bookings/on-behalf')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(payload)
+      .expect(201);
+
+    const link2 = res2.body.data.guestAccessLink;
+    assert.equal(link1, link2); // Exactly same derived access code and payment order ID!
+
+    // Extract paymentOrderId & code from link2
+    const match = link2.match(/\/guest-pay\/([^?]+)\?code=(.+)/);
+    assert.ok(match);
+    const [, poId, code] = match;
+
+    // Use code with GET /api/v1/payments/guest-order/:paymentOrderId?accessCode=...
+    const guestRes = await request(app)
+      .get(`/api/v1/payments/guest-order/${poId}?accessCode=${code}`)
+      .expect(200);
+
+    assert.equal(guestRes.body.success, true);
+    assert.equal(guestRes.body.data.requestNumber, res1.body.data.requestNumber);
+    assert.equal(guestRes.body.data.contactName, 'Khách Gọi Điện Lại');
+    assert.equal(guestRes.body.data.contactPhone, '0912999888');
+    assert.equal(guestRes.body.data.totalAmountVnd, 60000);
+    assert.ok(Array.isArray(guestRes.body.data.intervals));
+    assert.equal(guestRes.body.data.intervals.length, 1);
+  });
+
+  await t.test('12. Idempotent retry on expired hold returns EXPIRED without extending hold (Issue 6)', async () => {
+    const todayStr = getCurrentDateVN();
+    const bookingDate = addDaysToDateVN(todayStr, 2);
+
+    const payload = {
+      courtId: court._id.toString(),
+      bookingDate,
+      configVersion: 1,
+      selectedSlots: [{ startTime: '18:00', endTime: '18:30' }],
+      contactName: 'Khách Đã Hết Hạn',
+      contactPhone: '0912111000',
+      idempotencyKey: 'idemp-expired-hold-test',
+    };
+
+    const res1 = await request(app)
+      .post('/api/v1/booking-requests')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send(payload)
+      .expect(201);
+
+    // Manually expire hold in DB
+    const pastDate = new Date(Date.now() - 60 * 1000);
+    await BookingRequest.findByIdAndUpdate(res1.body.data.bookingRequestId, {
+      holdExpiresAt: pastDate,
+    });
+    await PaymentOrder.findOneAndUpdate(
+      { bookingRequestId: res1.body.data.bookingRequestId },
+      { status: 'EXPIRED' }
+    );
+
+    // Retry with SAME idempotencyKey
+    const res2 = await request(app)
+      .post('/api/v1/booking-requests')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send(payload)
+      .expect(201);
+
+    assert.equal(res2.body.data.status, 'EXPIRED');
+    assert.equal(res2.body.data.isExpired, true);
+    assert.equal(res2.body.data.paymentOrder.paymentUrl, '');
   });
 });
