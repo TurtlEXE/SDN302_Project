@@ -6,6 +6,9 @@ import {
   calculateEstimatedPrice,
   formatVND,
   getValidDateList,
+  getTodayVN,
+  addDaysVN,
+  getMaxBookingDateVN,
 } from '../slot-helper.js';
 
 describe('Slot Helper Utilities (P16)', () => {
@@ -147,7 +150,7 @@ describe('Slot Helper Utilities (P16)', () => {
     });
   });
 
-  describe('getValidDateList (Criterion 27)', () => {
+  describe('getValidDateList & Vietnam Timezone Date Helpers (Issue 4, Criterion 27)', () => {
     it('generates 31 days (today + 30 days) of booking date options', () => {
       const dates = getValidDateList(30);
       expect(dates).toHaveLength(31);
@@ -155,6 +158,33 @@ describe('Slot Helper Utilities (P16)', () => {
       expect(dates[0].dayName).toBe('Hôm nay');
       expect(dates[0].dateStr).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(dates[1].isToday).toBe(false);
+    });
+
+    it('correctly resolves Vietnam date at 00:30 VN (17:30 UTC previous day)', () => {
+      // 00:30 on 2026-11-01 in Vietnam is 2026-10-31T17:30:00.000Z in UTC
+      const dateAt0030VN = new Date('2026-10-31T17:30:00.000Z');
+      expect(getTodayVN(dateAt0030VN)).toBe('2026-11-01');
+
+      const dates = getValidDateList(30, dateAt0030VN);
+      expect(dates[0].dateStr).toBe('2026-11-01');
+      expect(dates[0].dayName).toBe('Hôm nay');
+      expect(dates[30].dateStr).toBe('2026-12-01');
+    });
+
+    it('correctly resolves Vietnam date at 06:59 VN (23:59 UTC previous day)', () => {
+      // 06:59 on 2026-11-01 in Vietnam is 2026-10-31T23:59:00.000Z in UTC
+      const dateAt0659VN = new Date('2026-10-31T23:59:00.000Z');
+      expect(getTodayVN(dateAt0659VN)).toBe('2026-11-01');
+
+      const dates = getValidDateList(30, dateAt0659VN);
+      expect(dates[0].dateStr).toBe('2026-11-01');
+    });
+
+    it('correctly handles month-end, leap year, and year-end transitions', () => {
+      expect(addDaysVN('2026-12-31', 1)).toBe('2027-01-01');
+      expect(addDaysVN('2026-02-28', 1)).toBe('2026-03-01');
+      expect(addDaysVN('2026-10-31', 30)).toBe('2026-11-30');
+      expect(getMaxBookingDateVN('2026-10-31', 30)).toBe('2026-11-30');
     });
   });
 });

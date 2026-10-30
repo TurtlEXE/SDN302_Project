@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ownerService } from '../../services/owner.service.js';
 import { courtService } from '../../services/court.service.js';
+import {
+  getTodayVN,
+  getMaxBookingDateVN,
+  calculateEstimatedPrice,
+  mergeContiguousSlots,
+  getDayType,
+} from '../../utils/slot-helper.js';
 
 export function OwnerOnBehalfPage() {
   // Facility & Court Selection
@@ -9,8 +16,9 @@ export function OwnerOnBehalfPage() {
   const [courts, setCourts] = useState([]);
   const [selectedCourtId, setSelectedCourtId] = useState('');
 
-  // Date selection (default today)
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Business Date selection in Asia/Ho_Chi_Minh (Issue 4)
+  const todayStr = getTodayVN();
+  const maxDateStr = getMaxBookingDateVN(todayStr, 30);
   const [bookingDate, setBookingDate] = useState(todayStr);
 
   // Customer Contact Information
@@ -166,6 +174,8 @@ export function OwnerOnBehalfPage() {
         courtId: selectedCourtId,
         bookingDate,
         configVersion: scheduleData.configVersion,
+        operatingHoursVersion: scheduleData.operatingHoursVersion,
+        priceVersion: scheduleData.priceVersion,
         selectedSlots,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
@@ -212,8 +222,15 @@ export function OwnerOnBehalfPage() {
 
   // Calculate estimated price
   const estimatedPrice =
-    currentCourt?.pricePerHourVnd && scheduleData?.slotStepMinutes && selectedSlots.length > 0
-      ? (currentCourt.pricePerHourVnd * (selectedSlots.length * scheduleData.slotStepMinutes)) / 60
+    currentCourt && selectedSlots.length > 0
+      ? calculateEstimatedPrice(
+          mergeContiguousSlots(selectedSlots),
+          {
+            pricingRules: scheduleData?.pricingRules || currentCourt?.pricingRules || [],
+            pricePerHourVnd: currentCourt.pricePerHourVnd || 0,
+          },
+          scheduleData?.dayType || (bookingDate ? getDayType(bookingDate) : 'WEEKDAY')
+        ).totalPriceVnd
       : 0;
 
   return (
@@ -409,6 +426,7 @@ export function OwnerOnBehalfPage() {
                   className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={bookingDate}
                   min={todayStr}
+                  max={maxDateStr}
                   onChange={(e) => setBookingDate(e.target.value)}
                 />
               </div>

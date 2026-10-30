@@ -145,6 +145,10 @@ export function CourtSchedule({ court, facility, initialDate, onProceedCheckout 
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
+      ) : scheduleData && scheduleData.isOpen === false ? (
+        <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-center text-xs text-amber-800 font-medium">
+          Cơ sở thể thao không mở cửa vào ngày này ({scheduleData.dayOfWeek === 'sunday' ? 'Chủ nhật' : `Thứ ${scheduleData.dayOfWeek}`}). Vui lòng chọn ngày khác.
+        </div>
       ) : scheduleData?.slots?.length ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-slate-500">
@@ -194,6 +198,10 @@ export function CourtSchedule({ court, facility, initialDate, onProceedCheckout 
         facility={facility}
         bookingDate={selectedDate}
         configVersion={scheduleData?.configVersion}
+        operatingHoursVersion={scheduleData?.operatingHoursVersion || facility?.operatingHoursVersion}
+        priceVersion={scheduleData?.priceVersion || court?.priceVersion}
+        pricingRules={scheduleData?.pricingRules || court?.pricingRules}
+        dayType={scheduleData?.dayType}
         slotStepMinutes={scheduleData?.slotStepMinutes}
         onClearSelection={handleClearSelection}
         onProceedCheckout={onProceedCheckout}

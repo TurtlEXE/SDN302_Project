@@ -171,6 +171,16 @@ export function OwnerFacilitiesPage() {
     setSelectedFacility(fac);
     setIsEditingFacility(false);
     setFacilityConflictWarning(null);
+    const defDay = { isOpen: true, openTime: fac.openTime || '06:00', closeTime: fac.closeTime || '22:00' };
+    const defaultWeekly = {
+      monday: defDay,
+      tuesday: defDay,
+      wednesday: defDay,
+      thursday: defDay,
+      friday: defDay,
+      saturday: defDay,
+      sunday: defDay,
+    };
     setEditFacilityForm({
       name: fac.name || '',
       address: fac.address || '',
@@ -179,6 +189,7 @@ export function OwnerFacilitiesPage() {
       closeTime: fac.closeTime || '22:00',
       phoneNumber: fac.phoneNumber || '',
       description: fac.description || '',
+      weeklySchedule: fac.weeklySchedule || defaultWeekly,
     });
 
     try {
@@ -427,11 +438,18 @@ export function OwnerFacilitiesPage() {
 
   const openEditCourtModal = (court) => {
     setEditingCourt(court);
+    const defaultRules = [
+      { dayType: 'WEEKDAY', startTime: selectedFacility?.openTime || '06:00', endTime: selectedFacility?.closeTime || '22:00', pricePerHourVnd: court.pricePerHourVnd || 150000 },
+      { dayType: 'WEEKEND', startTime: selectedFacility?.openTime || '06:00', endTime: selectedFacility?.closeTime || '22:00', pricePerHourVnd: court.pricePerHourVnd || 150000 },
+    ];
     setEditCourtForm({
       name: court.name || '',
       pricePerHourVnd: court.pricePerHourVnd || 150000,
       description: court.description || '',
       isActive: court.isActive !== false,
+      pricingRules: Array.isArray(court.pricingRules) && court.pricingRules.length > 0
+        ? court.pricingRules.map((r) => ({ ...r }))
+        : defaultRules,
     });
     setCourtError(null);
   };
@@ -439,6 +457,43 @@ export function OwnerFacilitiesPage() {
   const closeEditCourtModal = () => {
     setEditingCourt(null);
     setCourtError(null);
+  };
+
+  const handleAddPricingRule = () => {
+    const rules = editCourtForm.pricingRules || [];
+    const newRule = {
+      dayType: 'WEEKDAY',
+      startTime: selectedFacility?.openTime || '06:00',
+      endTime: selectedFacility?.closeTime || '22:00',
+      pricePerHourVnd: Number(editCourtForm.pricePerHourVnd) || 150000,
+    };
+    setEditCourtForm({
+      ...editCourtForm,
+      pricingRules: [...rules, newRule],
+    });
+  };
+
+  const handleUpdatePricingRule = (index, field, value) => {
+    const rules = [...(editCourtForm.pricingRules || [])];
+    rules[index] = { ...rules[index], [field]: value };
+    const validPrices = rules.map((r) => Number(r.pricePerHourVnd)).filter((p) => p > 0);
+    const minP = validPrices.length > 0 ? Math.min(...validPrices) : editCourtForm.pricePerHourVnd;
+    setEditCourtForm({
+      ...editCourtForm,
+      pricingRules: rules,
+      pricePerHourVnd: minP > 0 ? minP : editCourtForm.pricePerHourVnd,
+    });
+  };
+
+  const handleRemovePricingRule = (index) => {
+    const rules = (editCourtForm.pricingRules || []).filter((_, idx) => idx !== index);
+    const validPrices = rules.map((r) => Number(r.pricePerHourVnd)).filter((p) => p > 0);
+    const minP = validPrices.length > 0 ? Math.min(...validPrices) : editCourtForm.pricePerHourVnd;
+    setEditCourtForm({
+      ...editCourtForm,
+      pricingRules: rules,
+      pricePerHourVnd: minP > 0 ? minP : editCourtForm.pricePerHourVnd,
+    });
   };
 
   const handleSaveCourt = async (e) => {
@@ -452,6 +507,7 @@ export function OwnerFacilitiesPage() {
       await ownerService.updateCourt(editingCourt.id || editingCourt._id, {
         name: editCourtForm.name.trim(),
         pricePerHourVnd: Number(editCourtForm.pricePerHourVnd),
+        pricingRules: editCourtForm.pricingRules,
         description: editCourtForm.description.trim(),
         isActive: editCourtForm.isActive,
       });
@@ -868,6 +924,84 @@ export function OwnerFacilitiesPage() {
                         className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800"
                         data-testid="input-edit-facility-closetime"
                       />
+                    </div>
+
+                    <div className="sm:col-span-2 pt-2 border-t border-slate-100">
+                      <label className="font-semibold text-slate-800 text-xs block mb-2">
+                        Lịch hoạt động theo ngày trong tuần (Thứ Hai – Chủ Nhật)
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {[
+                          { key: 'monday', label: 'Thứ Hai' },
+                          { key: 'tuesday', label: 'Thứ Ba' },
+                          { key: 'wednesday', label: 'Thứ Tư' },
+                          { key: 'thursday', label: 'Thứ Năm' },
+                          { key: 'friday', label: 'Thứ Sáu' },
+                          { key: 'saturday', label: 'Thứ Bảy' },
+                          { key: 'sunday', label: 'Chủ Nhật' },
+                        ].map((day) => {
+                          const sched = editFacilityForm.weeklySchedule?.[day.key] || {
+                            isOpen: true,
+                            openTime: editFacilityForm.openTime,
+                            closeTime: editFacilityForm.closeTime,
+                          };
+                          return (
+                            <div key={day.key} className="p-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between space-x-2">
+                              <div className="flex items-center space-x-1.5 min-w-[75px]">
+                                <input
+                                  type="checkbox"
+                                  id={`check-${day.key}`}
+                                  checked={sched.isOpen !== false}
+                                  onChange={(e) => {
+                                    const updated = {
+                                      ...editFacilityForm.weeklySchedule,
+                                      [day.key]: { ...sched, isOpen: e.target.checked },
+                                    };
+                                    setEditFacilityForm({ ...editFacilityForm, weeklySchedule: updated });
+                                  }}
+                                  className="rounded text-brand-600 h-3.5 w-3.5"
+                                />
+                                <label htmlFor={`check-${day.key}`} className="font-semibold text-slate-700 cursor-pointer">
+                                  {day.label}
+                                </label>
+                              </div>
+                              {sched.isOpen !== false ? (
+                                <div className="flex items-center space-x-1">
+                                  <input
+                                    type="time"
+                                    value={sched.openTime || editFacilityForm.openTime}
+                                    onChange={(e) => {
+                                      const updated = {
+                                        ...editFacilityForm.weeklySchedule,
+                                        [day.key]: { ...sched, openTime: e.target.value },
+                                      };
+                                      setEditFacilityForm({ ...editFacilityForm, weeklySchedule: updated });
+                                    }}
+                                    className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[11px]"
+                                  />
+                                  <span>-</span>
+                                  <input
+                                    type="time"
+                                    value={sched.closeTime || editFacilityForm.closeTime}
+                                    onChange={(e) => {
+                                      const updated = {
+                                        ...editFacilityForm.weeklySchedule,
+                                        [day.key]: { ...sched, closeTime: e.target.value },
+                                      };
+                                      setEditFacilityForm({ ...editFacilityForm, weeklySchedule: updated });
+                                    }}
+                                    className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[11px]"
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-amber-600 font-medium text-[11px] px-2 py-0.5 bg-amber-50 rounded border border-amber-200">
+                                  Nghỉ / Đóng cửa
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div className="sm:col-span-2">
@@ -1411,6 +1545,86 @@ export function OwnerFacilitiesPage() {
                   Mức giá mới chỉ áp dụng cho các lượt đặt sân mới sau thời điểm lưu. Các đơn đặt đã được khách tạo
                   hoặc thanh toán trước đó vẫn giữ nguyên đơn giá cũ.
                 </p>
+              </div>
+
+              {/* B03 Pricing Rules by Time & Day Type */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-800 text-xs flex items-center space-x-1.5">
+                    <Clock className="w-4 h-4 text-brand-600" />
+                    <span>Bảng giá theo khung giờ & loại ngày ({editCourtForm.pricingRules?.length || 0})</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddPricingRule}
+                    className="text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 px-2 py-1 rounded-lg border border-brand-200"
+                  >
+                    + Thêm khung giá
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {(editCourtForm.pricingRules || []).map((rule, rIdx) => (
+                    <div
+                      key={rIdx}
+                      className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <select
+                          value={rule.dayType}
+                          onChange={(e) => handleUpdatePricingRule(rIdx, 'dayType', e.target.value)}
+                          className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700 font-medium"
+                        >
+                          <option value="WEEKDAY">Ngày thường (T2–T6)</option>
+                          <option value="WEEKEND">Cuối tuần (T7–CN)</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePricingRule(rIdx)}
+                          className="text-rose-500 hover:text-rose-700 text-xs font-medium px-1.5 py-0.5 rounded"
+                          title="Xóa khung giá"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Từ:</span>
+                          <input
+                            type="time"
+                            value={rule.startTime}
+                            onChange={(e) => handleUpdatePricingRule(rIdx, 'startTime', e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-lg p-1 text-xs"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Đến:</span>
+                          <input
+                            type="time"
+                            value={rule.endTime}
+                            onChange={(e) => handleUpdatePricingRule(rIdx, 'endTime', e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-lg p-1 text-xs"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Đơn giá (đ/h):</span>
+                          <input
+                            type="number"
+                            step="10000"
+                            min="10000"
+                            value={rule.pricePerHourVnd}
+                            onChange={(e) => handleUpdatePricingRule(rIdx, 'pricePerHourVnd', Number(e.target.value))}
+                            className="w-full bg-white border border-slate-200 rounded-lg p-1 text-xs font-semibold"
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div>

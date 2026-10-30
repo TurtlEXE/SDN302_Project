@@ -101,20 +101,90 @@ export function mergeContiguousSlots(slots = []) {
 }
 
 /**
- * Calculates authoritative price estimate for merged ranges (Criterion 33)
+ * Calculates authoritative price estimate for merged ranges (Criterion 33 & B03 multi-tier)
  * Formula: price = Math.round((durationMinutes / 60) * pricePerHourVnd)
  * 
  * @param {Array<{ startTime: string, endTime: string, durationMinutes: number }>} mergedRanges
- * @param {number} pricePerHourVnd
+ * @param {number | Array<object> | { pricingRules?: Array<object>, pricePerHourVnd?: number }} pricingInput
+ * @param {'WEEKDAY' | 'WEEKEND'} [dayType='WEEKDAY']
  * @returns {{ ranges: Array<any>, totalDurationMinutes: number, totalPriceVnd: number }}
  */
-export function calculateEstimatedPrice(mergedRanges = [], pricePerHourVnd = 0) {
+export function calculateEstimatedPrice(mergedRanges = [], pricingInput = 0, dayType = 'WEEKDAY') {
   let totalDurationMinutes = 0;
   let totalPriceVnd = 0;
 
+  let pricingRules = [];
+  let fallbackPrice = 0;
+
+  if (typeof pricingInput === 'number') {
+    fallbackPrice = pricingInput;
+  } else if (Array.isArray(pricingInput)) {
+    pricingRules = pricingInput;
+  } else if (pricingInput && typeof pricingInput === 'object') {
+    pricingRules = pricingInput.pricingRules || [];
+    fallbackPrice = pricingInput.pricePerHourVnd || 0;
+  }
+
   const ranges = mergedRanges.map((range) => {
-    const duration = range.durationMinutes;
-    const rangePrice = Math.round((duration / 60) * pricePerHourVnd);
+    const startMin = timeToMinutes(range.startTime);
+    const endMin = timeToMinutes(range.endTime);
+    const duration = range.durationMinutes || (endMin - startMin);
+
+    let rangePrice = 0;
+    let segments = [];
+
+    if (pricingRules.length > 0) {
+      const matchingRules = pricingRules
+        .filter((r) => r.dayType === dayType)
+        .map((r) => ({
+          ...r,
+          startMinutes: timeToMinutes(r.startTime),
+          endMinutes: timeToMinutes(r.endTime),
+          pricePerHourVnd: Number(r.pricePerHourVnd),
+        }))
+        .sort((a, b) => a.startMinutes - b.startMinutes);
+
+      let cur = startMin;
+      for (const rule of matchingRules) {
+        if (rule.endMinutes <= cur) continue;
+        if (rule.startMinutes > cur) {
+          // Gap: use fallback if available
+          const gapDur = Math.min(rule.startMinutes, endMin) - cur;
+          if (gapDur > 0 && fallbackPrice > 0) {
+            rangePrice += Math.round((gapDur / 60) * fallbackPrice);
+          }
+          cur = Math.min(rule.startMinutes, endMin);
+        }
+
+        const sStart = cur;
+        const sEnd = Math.min(rule.endMinutes, endMin);
+        const sDur = sEnd - sStart;
+
+        if (sDur > 0) {
+          const segAmount = Math.round((sDur / 60) * rule.pricePerHourVnd);
+          segments.push({
+            startTime: minutesToTime(sStart),
+            endTime: minutesToTime(sEnd),
+            startMinutes: sStart,
+            endMinutes: sEnd,
+            durationMinutes: sDur,
+            pricePerHourVnd: rule.pricePerHourVnd,
+            segmentAmountVnd: segAmount,
+          });
+          rangePrice += segAmount;
+          cur = sEnd;
+        }
+
+        if (cur >= endMin) break;
+      }
+
+      if (cur < endMin && fallbackPrice > 0) {
+        const remDur = endMin - cur;
+        rangePrice += Math.round((remDur / 60) * fallbackPrice);
+      }
+    } else {
+      rangePrice = Math.round((duration / 60) * fallbackPrice);
+    }
 
     totalDurationMinutes += duration;
     totalPriceVnd += rangePrice;
@@ -122,6 +192,7 @@ export function calculateEstimatedPrice(mergedRanges = [], pricePerHourVnd = 0) 
     return {
       ...range,
       priceVnd: rangePrice,
+      pricingSnapshot: segments,
     };
   });
 
@@ -149,28 +220,62 @@ export function formatVND(amount) {
 }
 
 /**
- * Generates valid booking date options up to 30 days ahead (Criterion 27)
+ * Returns the current date in Asia/Ho_Chi_Minh timezone as YYYY-MM-DD (Issue 4)
+ * @param {Date} [date=new Date()]
+ * @returns {string} YYYY-MM-DD
+ */
+export function getTodayVN(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
+}
+
+/**
+ * Adds a number of days to a YYYY-MM-DD date string in Asia/Ho_Chi_Minh timezone (Issue 4)
+ * @param {string} dateStr - 'YYYY-MM-DD'
+ * @param {number} days
+ * @returns {string} YYYY-MM-DD
+ */
+export function addDaysVN(dateStr, days) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const targetDate = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
+  return getTodayVN(targetDate);
+}
+
+/**
+ * Returns the maximum booking date allowed (today + maxDays ahead in Asia/Ho_Chi_Minh) (Issue 4)
+ * @param {string} [todayStr]
  * @param {number} [maxDays=30]
+ * @returns {string} YYYY-MM-DD
+ */
+export function getMaxBookingDateVN(todayStr = getTodayVN(), maxDays = 30) {
+  return addDaysVN(todayStr, maxDays);
+}
+
+/**
+ * Generates valid booking date options up to 30 days ahead in Asia/Ho_Chi_Minh timezone (Criterion 27, Issue 4)
+ * @param {number} [maxDays=30]
+ * @param {Date} [baseDate=new Date()]
  * @returns {Array<{ dateStr: string, dayName: string, displayDate: string, isToday: boolean }>}
  */
-export function getValidDateList(maxDays = 30) {
+export function getValidDateList(maxDays = 30, baseDate = new Date()) {
   const dates = [];
-  const now = new Date();
-
+  const todayStr = getTodayVN(baseDate);
   const daysOfWeek = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
   for (let i = 0; i <= maxDays; i++) {
-    const d = new Date(now);
-    d.setDate(now.getDate() + i);
-
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    const dateStr = addDaysVN(todayStr, i);
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    const dayOfWeekIndex = utcDate.getUTCDay();
 
     const isToday = i === 0;
-    const dayName = isToday ? 'Hôm nay' : daysOfWeek[d.getDay()];
-    const displayDate = `${day}/${month}`;
+    const dayName = isToday ? 'Hôm nay' : daysOfWeek[dayOfWeekIndex];
+    const displayDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
 
     dates.push({
       dateStr,
@@ -182,4 +287,19 @@ export function getValidDateList(maxDays = 30) {
 
   return dates;
 }
+
+export const DAY_OF_WEEK_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+export function getDayOfWeekKey(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return 'monday';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  return DAY_OF_WEEK_KEYS[utcDate.getUTCDay()];
+}
+
+export function getDayType(dateStr) {
+  const key = getDayOfWeekKey(dateStr);
+  return key === 'saturday' || key === 'sunday' ? 'WEEKEND' : 'WEEKDAY';
+}
+
 

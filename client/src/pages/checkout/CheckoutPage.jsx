@@ -107,6 +107,9 @@ export function CheckoutPage() {
         courtId: draft.courtId,
         bookingDate: draft.bookingDate,
         configVersion: draft.configVersion,
+        operatingHoursVersion: draft.operatingHoursVersion,
+        priceVersion: draft.priceVersion,
+        expectedAmountVnd: draft.totalPriceVnd,
         selectedSlots,
         contactName: contactName.trim(),
         contactPhone: contactPhone.trim(),
@@ -251,9 +254,9 @@ export function CheckoutPage() {
                 <span className="font-bold text-slate-800 text-sm">{draft.bookingDate}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block mb-0.5">Đơn giá giờ:</span>
+                <span className="text-slate-400 block mb-0.5">Loại ngày / Đơn giá:</span>
                 <span className="font-bold text-brand-700 text-sm">
-                  {formatVND(draft.pricePerHourVnd)}/giờ
+                  {draft.dayType === 'WEEKEND' ? 'Cuối tuần' : 'Ngày thường'} • từ {formatVND(draft.pricePerHourVnd)}/h
                 </span>
               </div>
             </div>
@@ -368,6 +371,16 @@ export function CheckoutPage() {
                   <div className="text-slate-500 text-[11px] mt-0.5">
                     Thời lượng: {range.durationMinutes} phút
                   </div>
+                  {range.pricingSnapshot && range.pricingSnapshot.length > 1 && (
+                    <div className="text-[10px] text-slate-500 mt-1.5 space-y-0.5 border-t border-slate-200/60 pt-1">
+                      {range.pricingSnapshot.map((seg, sIdx) => (
+                        <div key={sIdx} className="flex justify-between space-x-2 text-slate-600">
+                          <span>• {seg.startTime}–{seg.endTime} ({seg.durationMinutes}p @ {formatVND(seg.pricePerHourVnd)}/h):</span>
+                          <span className="font-semibold text-slate-700">{formatVND(seg.segmentAmountVnd)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="text-sm font-bold text-brand-700">
                   {formatVND(range.priceVnd)}

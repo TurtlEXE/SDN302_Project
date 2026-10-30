@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ownerService } from '../../services/owner.service.js';
 import { courtService } from '../../services/court.service.js';
+import { getTodayVN, getMaxBookingDateVN } from '../../utils/slot-helper.js';
 
 export function OwnerCourtBlocksPage() {
   // Facility & Court selection
@@ -9,8 +10,9 @@ export function OwnerCourtBlocksPage() {
   const [courts, setCourts] = useState([]);
   const [selectedCourtId, setSelectedCourtId] = useState('');
 
-  // Date selection (default today)
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Business Date selection in Asia/Ho_Chi_Minh (Issue 4)
+  const todayStr = getTodayVN();
+  const maxDateStr = getMaxBookingDateVN(todayStr, 30);
   const [selectedDate, setSelectedDate] = useState(todayStr);
 
   // Status filter for list
@@ -322,6 +324,7 @@ export function OwnerCourtBlocksPage() {
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={selectedDate}
               min={todayStr}
+              max={maxDateStr}
               onChange={(e) => setSelectedDate(e.target.value)}
             />
           </div>

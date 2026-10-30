@@ -7,6 +7,9 @@ export const bookingService = {
    * @param {string} payload.courtId
    * @param {string} payload.bookingDate - 'YYYY-MM-DD'
    * @param {number} [payload.configVersion]
+   * @param {number} [payload.operatingHoursVersion]
+   * @param {number} [payload.priceVersion]
+   * @param {number} [payload.expectedAmountVnd]
    * @param {Array<{ startTime: string, endTime: string }>} payload.selectedSlots
    * @param {string} payload.contactName
    * @param {string} payload.contactPhone
@@ -14,6 +17,17 @@ export const bookingService = {
    */
   async createBookingRequest(payload) {
     return apiClient.post('/booking-requests', payload);
+  },
+
+  /**
+   * Get official price quote for selected slots (B03)
+   * @param {Object} payload
+   * @param {string} payload.courtId
+   * @param {string} payload.bookingDate
+   * @param {Array<{ startTime: string, endTime: string }>} payload.selectedSlots
+   */
+  async getBookingQuote(payload) {
+    return apiClient.post('/booking-requests/quote', payload);
   },
 
   /**
