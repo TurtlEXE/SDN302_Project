@@ -61,7 +61,7 @@ export function errorHandler(err, req, res, next) {
   };
 
   // Add stack trace in development mode for debugging
-  if (env.NODE_ENV === 'development' && error.stack) {
+  if (process.env.NODE_ENV !== 'production' && env.NODE_ENV === 'development' && error.stack) {
     responsePayload.error.stack = error.stack;
   }
 

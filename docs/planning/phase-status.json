@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "updated_on": "2026-10-29",
+  "updated_on": "2026-10-30",
   "workflow": "sequential_backend_first",
-  "active_phase": "P05",
-  "next_candidate": "P05",
-  "note": "Phase P05 đã hoàn thành triển khai và sẵn sàng bàn giao READY_FOR_REVIEW: Refresh rotation nguyên tử kèm reuse detection, logout/logout-all, giới hạn phiên 7 ngày, Auth Request Guard CSRF/Origin allowlist. 108/108 tests pass, lint 82 files pass, manifest 15/15 files khớp 100%.",
+  "active_phase": null,
+  "next_candidate": "P15",
+  "note": "Phase P14 và Cổng chất lượng BE_READY đã được reviewer độc lập nghiệm thu ACCEPTED ngày 30/10/2026 (xem docs/phase-reports/P14-review.md). Toàn bộ 52 test files (340+ tests) đạt 100% PASS, 7 điều kiện tiên quyết đạt chuẩn, 64 tiêu chí đã được ánh xạ. Hệ sinh thái backend sẵn sàng chuyển sang giai đoạn Frontend (Phase P15).",
   "gates": {
     "BE_READY": {
-      "status": "CLOSED",
+      "status": "ACCEPTED",
       "phase": "P14",
-      "evidence": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "evidence": "docs/phase-reports/P14-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-30",
+      "accepted_revision": "docs/phase-reports/P14-manifest.sha256"
     },
     "RELEASE_READY": {
       "status": "CLOSED",
@@ -71,93 +71,93 @@
     },
     {
       "id": "P05",
-      "status": "READY_FOR_REVIEW",
+      "status": "ACCEPTED",
       "report": "docs/phase-reports/P05.md",
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "review": "docs/phase-reports/P05-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-29",
+      "accepted_revision": "305326d7e0b0bc4446a23742ffb6d4bff01936b3 (docs/phase-reports/P05-manifest.sha256)"
     },
     {
       "id": "P06",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P06.md",
+      "review": "docs/phase-reports/P06-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-29",
+      "accepted_revision": "docs/phase-reports/P06-manifest.sha256"
     },
     {
       "id": "P07",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P07.md",
+      "review": "docs/phase-reports/P07-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-29",
+      "accepted_revision": "docs/phase-reports/P07-manifest.sha256"
     },
     {
       "id": "P08",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P08.md",
+      "review": "docs/phase-reports/P08-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-29",
+      "accepted_revision": "docs/phase-reports/P08-manifest.sha256"
     },
     {
       "id": "P09",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P09.md",
+      "review": "docs/phase-reports/P09-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-29",
+      "accepted_revision": "docs/phase-reports/P09-manifest.sha256"
     },
     {
       "id": "P10",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P10.md",
+      "review": "docs/phase-reports/P10-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-29",
+      "accepted_revision": "docs/phase-reports/P10-manifest.sha256"
     },
     {
       "id": "P11",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P11.md",
+      "review": "docs/phase-reports/P11-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-30",
+      "accepted_revision": "docs/phase-reports/P11-manifest.sha256"
     },
     {
       "id": "P12",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P12.md",
+      "review": "docs/phase-reports/P12-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-30",
+      "accepted_revision": "docs/phase-reports/P12-manifest.sha256 (đối chiếu phiên bản thực tế tại docs/phase-reports/P12-review.md)"
     },
     {
       "id": "P13",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P13.md",
+      "review": "docs/phase-reports/P13-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-30",
+      "accepted_revision": "docs/phase-reports/P13-manifest.sha256"
     },
     {
       "id": "P14",
-      "status": "NOT_STARTED",
-      "report": null,
-      "review": null,
-      "accepted_by": null,
-      "accepted_on": null,
-      "accepted_revision": null
+      "status": "ACCEPTED",
+      "report": "docs/phase-reports/P14.md",
+      "review": "docs/phase-reports/P14-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-30",
+      "accepted_revision": "docs/phase-reports/P14-manifest.sha256"
     },
     {
       "id": "P15",

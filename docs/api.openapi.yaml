@@ -1625,6 +1625,10 @@ paths:
           schema:
             type: string
             format: date
+        - name: facilityId
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: Thống kê doanh thu và số lượng đơn cho chủ sân.
@@ -1655,6 +1659,17 @@ paths:
       summary: Tổng quan số liệu vận hành hệ thống
       security:
         - BearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
       responses:
         '200':
           description: Dữ liệu thống kê tổng thể toàn hệ thống.
@@ -2193,6 +2208,24 @@ paths:
           schema:
             type: string
             enum: [PENDING, SENT, FAILED]
+        - name: eventType
+          in: query
+          schema:
+            type: string
+        - name: recipientEmail
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
       responses:
         '200':
           description: Danh sách email trong hàng đợi outbox.
@@ -2208,6 +2241,8 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/EmailOutboxDTO'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationMeta'
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
@@ -3018,8 +3053,18 @@ components:
           type: integer
         totalRefundedVnd:
           type: integer
+        pendingRefundVnd:
+          type: integer
         netRevenueVnd:
           type: integer
+        upcomingBookings:
+          type: array
+          items:
+            type: object
+        unprocessedPastBookings:
+          type: array
+          items:
+            type: object
 
     AdminDashboardDTO:
       type: object
@@ -3033,6 +3078,20 @@ components:
         totalActiveCourts:
           type: integer
         totalBookingsMonth:
+          type: integer
+        bookingsByStatus:
+          type: object
+        totalCollectedVnd:
+          type: integer
+        totalRefundedVnd:
+          type: integer
+        totalPendingRefundVnd:
+          type: integer
+        netCollectedVnd:
+          type: integer
+        unresolvedExceptionTransactions:
+          type: integer
+        failedEmailsCount:
           type: integer
 
     PaginatedFacilityResponse:
