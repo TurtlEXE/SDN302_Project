@@ -34,6 +34,8 @@ Thumbs.db
 # IDE Files
 .idea/
 .vscode/
+.agents/
+skills-lock.json
 *.suo
 *.ntvs*
 *.njsproj
