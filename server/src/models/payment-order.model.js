@@ -28,7 +28,7 @@ const paymentOrderSchema = new Schema(
     closedReason: {
       type: String,
       default: null,
-      enum: [null, 'EXPIRED', 'CUSTOMER_CANCELLED', 'FAILED_PAYMENT'],
+      enum: [null, 'EXPIRED', 'CUSTOMER_CANCELLED', 'OWNER_CANCELLED', 'FAILED_PAYMENT'],
     },
     expiresAt: {
       type: Date,
