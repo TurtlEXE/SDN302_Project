@@ -2,6 +2,19 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
+export const pricingSegmentSnapshotSchema = new Schema(
+  {
+    startTime: { type: String, required: true },
+    endTime: { type: String, required: true },
+    startMinutes: { type: Number, required: true },
+    endMinutes: { type: Number, required: true },
+    durationMinutes: { type: Number, required: true },
+    pricePerHourVnd: { type: Number, required: true },
+    segmentAmountVnd: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
 const bookingSnapshotSchema = new Schema(
   {
     facilityName: { type: String, required: true },
@@ -124,6 +137,10 @@ const bookingSchema = new Schema(
     snapshot: {
       type: bookingSnapshotSchema,
       required: true,
+    },
+    pricingSnapshot: {
+      type: [pricingSegmentSnapshotSchema],
+      default: () => [],
     },
     cancellation: {
       type: cancellationSchema,

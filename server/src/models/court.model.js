@@ -2,6 +2,32 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
+export const pricingRuleSchema = new Schema(
+  {
+    dayType: {
+      type: String,
+      enum: ['WEEKDAY', 'WEEKEND'],
+      required: true,
+    },
+    startTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    endTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    pricePerHourVnd: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+  },
+  { _id: false }
+);
+
 const courtSchema = new Schema(
   {
     facilitySportId: {
@@ -38,10 +64,19 @@ const courtSchema = new Schema(
       required: true,
       default: 1,
     },
+    pricingRules: {
+      type: [pricingRuleSchema],
+      default: () => [],
+    },
     isActive: {
       type: Boolean,
       required: true,
       default: true,
+    },
+    bookingCoordinationVersion: {
+      type: Number,
+      required: true,
+      default: 1,
     },
   },
   {

@@ -17,7 +17,9 @@ import {
   validateBookingDateRange,
   validateAdvanceNotice,
   validateConfigVersion,
+  validatePriceVersion,
 } from './booking-policy.js';
+import { getFacilityOperatingHoursForDate } from '../../utils/date-time.js';
 import { bookingCleanupService } from './booking-cleanup.service.js';
 import { vnpayClient } from '../../integrations/vnpay.client.js';
 import { AppError } from '../../errors/app-error.js';
@@ -40,6 +42,8 @@ export function computePayloadFingerprint({
   courtId,
   bookingDate,
   configVersion,
+  operatingHoursVersion,
+  priceVersion,
   selectedSlots,
   contactName,
   contactPhone,
@@ -52,6 +56,12 @@ export function computePayloadFingerprint({
     courtId.toString().trim(),
     bookingDate.trim(),
     configVersion.toString().trim(),
+    operatingHoursVersion !== undefined && operatingHoursVersion !== null
+      ? operatingHoursVersion.toString().trim()
+      : '',
+    priceVersion !== undefined && priceVersion !== null
+      ? priceVersion.toString().trim()
+      : '',
     slotsString,
     contactName.trim().toLowerCase(),
     contactPhone.trim(),
@@ -114,6 +124,9 @@ export class BookingRequestService {
       courtId,
       bookingDate,
       configVersion,
+      operatingHoursVersion,
+      priceVersion,
+      expectedAmountVnd,
       selectedSlots,
       contactName,
       contactPhone,
@@ -142,6 +155,12 @@ export class BookingRequestService {
     if (typeof configVersion !== 'number') {
       throw AppError.badRequest('Phiên bản cấu hình (configVersion) là bắt buộc.', ERROR_CODES.VALIDATION_ERROR);
     }
+    if (operatingHoursVersion !== undefined && operatingHoursVersion !== null && typeof operatingHoursVersion !== 'number') {
+      throw AppError.badRequest('Phiên bản giờ hoạt động (operatingHoursVersion) không hợp lệ.', ERROR_CODES.VALIDATION_ERROR);
+    }
+    if (priceVersion !== undefined && priceVersion !== null && typeof priceVersion !== 'number') {
+      throw AppError.badRequest('Phiên bản bảng giá (priceVersion) không hợp lệ.', ERROR_CODES.VALIDATION_ERROR);
+    }
 
     // 2. Booking date range check (today up to 30 days ahead)
     validateBookingDateRange(bookingDate, 30);
@@ -151,6 +170,8 @@ export class BookingRequestService {
       courtId,
       bookingDate,
       configVersion,
+      operatingHoursVersion,
+      priceVersion,
       selectedSlots,
       contactName,
       contactPhone,
@@ -363,6 +384,15 @@ export class BookingRequestService {
         );
       }
 
+      // Verify facility owner is active and not locked (PUB-01, Criterion 175, Issue 1)
+      const facilityOwner = await User.findById(facility.ownerId).session(session);
+      if (!facilityOwner || facilityOwner.isLocked || !facilityOwner.activatedAt) {
+        throw AppError.forbidden(
+          'Cơ sở thể thao hoặc chủ sân đang bị khóa, không thể nhận đặt sân.',
+          ERROR_CODES.FACILITY_NOT_FOUND
+        );
+      }
+
       if (source === 'OWNER_ON_BEHALF' && facility.ownerId.toString() !== actorUser._id.toString()) {
         throw AppError.forbidden('Chủ sân chỉ được tạo đơn đặt hộ tại cơ sở thuộc quyền sở hữu của mình.', ERROR_CODES.FORBIDDEN);
       }
@@ -372,14 +402,35 @@ export class BookingRequestService {
         throw AppError.notFound('Không tìm thấy cấu hình môn thể thao tại cơ sở.', ERROR_CODES.FACILITY_SPORT_NOT_FOUND);
       }
 
-      // 4.4. Verify configuration version match (Criterion 33, Criterion 34)
+      // 4.4. Verify configuration and price version match (Criterion 33, Criterion 34, Issue 3, B03)
       validateConfigVersion(configVersion, facilitySport.configVersion);
 
-      // 4.5. Merge contiguous slots & validate slot boundaries (Criteria 6, 26, 27, 28, 29)
+      if (operatingHoursVersion !== undefined && operatingHoursVersion !== null) {
+        if (operatingHoursVersion !== facility.operatingHoursVersion) {
+          throw AppError.conflict(
+            'Cấu hình giờ hoạt động hoặc bước giờ đã thay đổi. Vui lòng tải lại thông tin sân.',
+            ERROR_CODES.CONFIG_VERSION_MISMATCH
+          );
+        }
+      }
+
+      if (priceVersion !== undefined && priceVersion !== null) {
+        validatePriceVersion(priceVersion, court.priceVersion);
+      }
+
+      // 4.5. Resolve weekly operating hours and merge contiguous slots (B03)
+      const dayHours = getFacilityOperatingHoursForDate(facility, bookingDate);
+      if (!dayHours.isOpen) {
+        throw AppError.badRequest(
+          'Cơ sở thể thao không mở cửa vào ngày này.',
+          ERROR_CODES.VALIDATION_ERROR
+        );
+      }
+
       const mergedIntervals = mergeContiguousSlots(
         selectedSlots,
-        facility.openTime,
-        facility.closeTime,
+        dayHours.openTime,
+        dayHours.closeTime,
         facilitySport.slotStepMinutes
       );
 
@@ -388,11 +439,24 @@ export class BookingRequestService {
       const minAdvance = source === 'CUSTOMER_ONLINE' ? 15 : 0;
       validateAdvanceNotice(bookingDate, earliestStartTime, minAdvance);
 
-      // 4.7. Calculate pricing for merged intervals (Criteria 6, 24, 32)
-      const pricingResult = calculateBookingRequestTotal(mergedIntervals, court.pricePerHourVnd);
+      // 4.7. Calculate pricing for merged intervals using multi-tier pricing rules (B03, Criteria 6, 24, 32)
+      const pricingResult = calculateBookingRequestTotal(
+        mergedIntervals,
+        { pricingRules: court.pricingRules, pricePerHourVnd: court.pricePerHourVnd },
+        dayHours.dayType
+      );
       const totalAmountVnd = pricingResult.totalPriceVnd;
 
-      // 4.8. Acquire atomic write coordination lock on CourtDaySchedule (Section 8.3.3)
+      // 4.7.1 Verify expected amount if provided by customer (Criterion 5 B03)
+      if (expectedAmountVnd !== undefined && expectedAmountVnd !== null && Number(expectedAmountVnd) !== totalAmountVnd) {
+        throw AppError.conflict(
+          `Báo giá đã thay đổi từ ${Number(expectedAmountVnd).toLocaleString('vi-VN')}đ sang ${totalAmountVnd.toLocaleString('vi-VN')}đ. Vui lòng xác nhận lại số tiền trước khi tiếp tục.`,
+          ERROR_CODES.CONFIG_VERSION_MISMATCH
+        );
+      }
+
+      // 4.8. Acquire atomic write coordination lock on Court document (Issue 2) and CourtDaySchedule (Section 8.3.3)
+      await courtRepository.touchCoordination(courtId, session);
       await courtDayScheduleRepository.acquireCoordinationLock(courtId, bookingDate, session);
 
       // 4.9. Read occupying schedules and check for overlap within the lock
@@ -499,8 +563,9 @@ export class BookingRequestService {
         startMinutes: interval.startMinutes,
         endMinutes: interval.endMinutes,
         durationMinutes: interval.durationMinutes,
-        pricePerHourVnd: court.pricePerHourVnd,
+        pricePerHourVnd: interval.pricingSnapshot?.[0]?.pricePerHourVnd || court.pricePerHourVnd,
         totalPriceVnd: interval.priceVnd,
+        pricingSnapshot: interval.pricingSnapshot || [],
         allocatedAmountVnd: 0,
         status: 'PENDING_PAYMENT',
         paymentStatus: 'UNPAID',
@@ -620,11 +685,89 @@ export class BookingRequestService {
         startTime: b.startTime,
         endTime: b.endTime,
         durationMinutes: b.durationMinutes,
+        pricePerHourVnd: b.pricePerHourVnd,
         totalPriceVnd: b.totalPriceVnd,
+        pricingSnapshot: b.pricingSnapshot || [],
         status: b.status,
         paymentStatus: b.paymentStatus,
         createdAt: b.createdAt.toISOString(),
       })),
+    };
+  }
+
+  /**
+   * Official price quote calculation for a selection of slots on a given court and date (B03)
+   * @param {Object} actorUser
+   * @param {Object} inputData
+   * @returns {Promise<Object>}
+   */
+  async getBookingQuote(actorUser, inputData) {
+    const { courtId, bookingDate, selectedSlots } = inputData;
+
+    if (!courtId || !mongoose.Types.ObjectId.isValid(courtId)) {
+      throw AppError.badRequest('ID sân thể thao không hợp lệ.', ERROR_CODES.VALIDATION_ERROR);
+    }
+    if (!bookingDate) {
+      throw AppError.badRequest('Ngày đặt sân là bắt buộc.', ERROR_CODES.VALIDATION_ERROR);
+    }
+    if (!Array.isArray(selectedSlots) || selectedSlots.length === 0) {
+      throw AppError.badRequest('Danh sách ô giờ được chọn không được để trống.', ERROR_CODES.VALIDATION_ERROR);
+    }
+
+    validateBookingDateRange(bookingDate, 30);
+
+    const court = await courtRepository.findById(courtId);
+    if (!court || !court.isActive) {
+      throw AppError.notFound('Không tìm thấy sân thể thao.', ERROR_CODES.COURT_NOT_FOUND);
+    }
+
+    const facility = await facilityRepository.findById(court.facilityId);
+    if (!facility || facility.status !== 'PUBLISHED' || facility.isLockedByAdmin) {
+      throw AppError.notFound('Không tìm thấy cơ sở thể thao công khai.', ERROR_CODES.FACILITY_NOT_FOUND);
+    }
+
+    const owner = await User.findById(facility.ownerId);
+    if (!owner || owner.isLocked || !owner.activatedAt) {
+      throw AppError.forbidden('Cơ sở thể thao hoặc chủ sân đang bị khóa, không thể nhận đặt sân.', ERROR_CODES.FACILITY_NOT_FOUND);
+    }
+
+    const facilitySport = await facilitySportRepository.findById(court.facilitySportId);
+    if (!facilitySport) {
+      throw AppError.notFound('Không tìm thấy cấu hình môn thể thao tại cơ sở.', ERROR_CODES.FACILITY_SPORT_NOT_FOUND);
+    }
+
+    const dayHours = getFacilityOperatingHoursForDate(facility, bookingDate);
+    if (!dayHours.isOpen) {
+      throw AppError.badRequest('Cơ sở thể thao không mở cửa vào ngày này.', ERROR_CODES.VALIDATION_ERROR);
+    }
+
+    const mergedIntervals = mergeContiguousSlots(
+      selectedSlots,
+      dayHours.openTime,
+      dayHours.closeTime,
+      facilitySport.slotStepMinutes
+    );
+
+    const pricingResult = calculateBookingRequestTotal(
+      mergedIntervals,
+      { pricingRules: court.pricingRules, pricePerHourVnd: court.pricePerHourVnd },
+      dayHours.dayType
+    );
+
+    return {
+      courtId: court._id.toString(),
+      courtName: court.name,
+      facilityId: facility._id.toString(),
+      facilityName: facility.name,
+      bookingDate,
+      dayOfWeek: dayHours.dayOfWeek,
+      dayType: dayHours.dayType,
+      priceVersion: court.priceVersion || 1,
+      operatingHoursVersion: facility.operatingHoursVersion || 1,
+      configVersion: facilitySport.configVersion,
+      totalAmountVnd: pricingResult.totalPriceVnd,
+      totalDurationMinutes: pricingResult.totalDurationMinutes,
+      intervals: pricingResult.intervals,
     };
   }
 }

@@ -24,6 +24,28 @@ const facilityImageSchema = new Schema(
   { _id: false }
 );
 
+export const dayScheduleSchema = new Schema(
+  {
+    isOpen: { type: Boolean, default: true },
+    openTime: { type: String, default: null },
+    closeTime: { type: String, default: null },
+  },
+  { _id: false }
+);
+
+export const weeklyScheduleSchema = new Schema(
+  {
+    monday: { type: dayScheduleSchema },
+    tuesday: { type: dayScheduleSchema },
+    wednesday: { type: dayScheduleSchema },
+    thursday: { type: dayScheduleSchema },
+    friday: { type: dayScheduleSchema },
+    saturday: { type: dayScheduleSchema },
+    sunday: { type: dayScheduleSchema },
+  },
+  { _id: false }
+);
+
 const facilitySchema = new Schema(
   {
     ownerId: {
@@ -64,6 +86,22 @@ const facilitySchema = new Schema(
       type: String,
       required: true,
       default: '22:00',
+    },
+    weeklySchedule: {
+      type: weeklyScheduleSchema,
+      default: function () {
+        const open = this?.openTime || '06:00';
+        const close = this?.closeTime || '22:00';
+        return {
+          monday: { isOpen: true, openTime: open, closeTime: close },
+          tuesday: { isOpen: true, openTime: open, closeTime: close },
+          wednesday: { isOpen: true, openTime: open, closeTime: close },
+          thursday: { isOpen: true, openTime: open, closeTime: close },
+          friday: { isOpen: true, openTime: open, closeTime: close },
+          saturday: { isOpen: true, openTime: open, closeTime: close },
+          sunday: { isOpen: true, openTime: open, closeTime: close },
+        };
+      },
     },
     operatingHoursVersion: {
       type: Number,

@@ -3,6 +3,8 @@ import { facilityRepository } from '../repositories/facility.repository.js';
 import { facilitySportRepository } from '../repositories/facility-sport.repository.js';
 import { AppError } from '../errors/app-error.js';
 import { ERROR_CODES } from '../errors/error-codes.js';
+import { validatePricingRules } from './booking/pricing.js';
+import { withTransaction } from '../database/transaction.js';
 
 export class CourtService {
   /**
@@ -53,17 +55,13 @@ export class CourtService {
   }
 
   async createOwnerCourt(ownerId, data) {
-    const { facilitySportId, name, description, pricePerHourVnd } = data;
+    const { facilitySportId, name, description, pricePerHourVnd, pricingRules: rawRules } = data;
 
     if (!facilitySportId) {
       throw new AppError('Cần cung cấp mã nhóm môn tại cơ sở (facilitySportId).', 400, ERROR_CODES.VALIDATION_ERROR);
     }
     if (!name || !name.trim()) {
       throw new AppError('Tên sân con là bắt buộc.', 400, ERROR_CODES.VALIDATION_ERROR);
-    }
-    const priceNum = Number(pricePerHourVnd);
-    if (isNaN(priceNum) || priceNum <= 0) {
-      throw new AppError('Đơn giá thuê sân theo giờ phải là số nguyên dương lớn hơn 0.', 400, ERROR_CODES.VALIDATION_ERROR);
     }
 
     const facilitySport = await facilitySportRepository.findById(facilitySportId);
@@ -74,6 +72,27 @@ export class CourtService {
     const facility = await facilityRepository.findById(facilitySport.facilityId);
     if (!facility || facility.ownerId.toString() !== ownerId.toString()) {
       throw new AppError('Bạn không có quyền quản lý cơ sở thể thao này.', 403, ERROR_CODES.FORBIDDEN);
+    }
+
+    let pricingRules = [];
+    let minPrice = 0;
+
+    if (Array.isArray(rawRules) && rawRules.length > 0) {
+      validatePricingRules(rawRules);
+      pricingRules = rawRules;
+      minPrice = Math.min(...pricingRules.map((r) => Number(r.pricePerHourVnd)));
+    } else {
+      const priceNum = Number(pricePerHourVnd);
+      if (isNaN(priceNum) || priceNum <= 0) {
+        throw new AppError('Đơn giá thuê sân theo giờ phải là số nguyên dương lớn hơn 0.', 400, ERROR_CODES.VALIDATION_ERROR);
+      }
+      minPrice = Math.round(priceNum);
+      const open = facility.openTime || '06:00';
+      const close = facility.closeTime || '22:00';
+      pricingRules = [
+        { dayType: 'WEEKDAY', startTime: open, endTime: close, pricePerHourVnd: minPrice },
+        { dayType: 'WEEKEND', startTime: open, endTime: close, pricePerHourVnd: minPrice },
+      ];
     }
 
     // Check uniqueness of court name within facility
@@ -88,8 +107,9 @@ export class CourtService {
       sportId: facilitySport.sportId._id || facilitySport.sportId,
       name: name.trim(),
       description: (description || '').trim(),
-      pricePerHourVnd: Math.round(priceNum),
+      pricePerHourVnd: minPrice,
       priceVersion: 1,
+      pricingRules,
       isActive: true,
     });
 
@@ -98,41 +118,58 @@ export class CourtService {
   }
 
   async updateOwnerCourt(ownerId, courtId, updateData) {
-    const { court, facility } = await this.assertOwnerCourt(ownerId, courtId);
-    const fieldsToSet = {};
+    return withTransaction(async (session) => {
+      const { court, facility } = await this.assertOwnerCourt(ownerId, courtId, session);
+      const fieldsToSet = {};
 
-    if (updateData.name !== undefined) {
-      const trimmedName = updateData.name.trim();
-      if (!trimmedName) {
-        throw new AppError('Tên sân con không được để trống.', 400, ERROR_CODES.VALIDATION_ERROR);
+      if (updateData.name !== undefined) {
+        const trimmedName = updateData.name.trim();
+        if (!trimmedName) {
+          throw new AppError('Tên sân con không được để trống.', 400, ERROR_CODES.VALIDATION_ERROR);
+        }
+
+        const nameExists = await courtRepository.hasCourtWithName(facility._id, trimmedName, courtId, session);
+        if (nameExists) {
+          throw new AppError('Tên sân con đã tồn tại trong cơ sở thể thao này.', 409, ERROR_CODES.COURT_NAME_ALREADY_EXISTS);
+        }
+
+        fieldsToSet.name = trimmedName;
       }
 
-      const nameExists = await courtRepository.hasCourtWithName(facility._id, trimmedName, courtId);
-      if (nameExists) {
-        throw new AppError('Tên sân con đã tồn tại trong cơ sở thể thao này.', 409, ERROR_CODES.COURT_NAME_ALREADY_EXISTS);
+      if (updateData.description !== undefined) {
+        fieldsToSet.description = updateData.description.trim();
       }
 
-      fieldsToSet.name = trimmedName;
-    }
-
-    if (updateData.description !== undefined) {
-      fieldsToSet.description = updateData.description.trim();
-    }
-
-    if (updateData.pricePerHourVnd !== undefined) {
-      const priceNum = Number(updateData.pricePerHourVnd);
-      if (isNaN(priceNum) || priceNum <= 0) {
-        throw new AppError('Đơn giá thuê sân theo giờ phải là số nguyên dương lớn hơn 0.', 400, ERROR_CODES.VALIDATION_ERROR);
+      if (updateData.pricingRules !== undefined) {
+        if (!Array.isArray(updateData.pricingRules) || updateData.pricingRules.length === 0) {
+          throw new AppError('Bảng giá sân không được để trống.', 400, ERROR_CODES.VALIDATION_ERROR);
+        }
+        validatePricingRules(updateData.pricingRules);
+        fieldsToSet.pricingRules = updateData.pricingRules;
+        fieldsToSet.pricePerHourVnd = Math.min(...updateData.pricingRules.map((r) => Number(r.pricePerHourVnd)));
+      } else if (updateData.pricePerHourVnd !== undefined) {
+        const priceNum = Number(updateData.pricePerHourVnd);
+        if (isNaN(priceNum) || priceNum <= 0) {
+          throw new AppError('Đơn giá thuê sân theo giờ phải là số nguyên dương lớn hơn 0.', 400, ERROR_CODES.VALIDATION_ERROR);
+        }
+        const rounded = Math.round(priceNum);
+        fieldsToSet.pricePerHourVnd = rounded;
+        const open = facility.openTime || '06:00';
+        const close = facility.closeTime || '22:00';
+        fieldsToSet.pricingRules = [
+          { dayType: 'WEEKDAY', startTime: open, endTime: close, pricePerHourVnd: rounded },
+          { dayType: 'WEEKEND', startTime: open, endTime: close, pricePerHourVnd: rounded },
+        ];
       }
-      fieldsToSet.pricePerHourVnd = Math.round(priceNum);
-    }
 
-    if (updateData.isActive !== undefined) {
-      fieldsToSet.isActive = Boolean(updateData.isActive);
-    }
+      if (updateData.isActive !== undefined) {
+        fieldsToSet.isActive = Boolean(updateData.isActive);
+      }
 
-    const updated = await courtRepository.updateById(courtId, fieldsToSet);
-    return courtRepository.toDTO(updated);
+      await courtRepository.touchCoordination(courtId, session);
+      const updated = await courtRepository.updateById(courtId, fieldsToSet, session);
+      return courtRepository.toDTO(updated);
+    });
   }
 }
 

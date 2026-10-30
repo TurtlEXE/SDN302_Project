@@ -419,10 +419,10 @@ test('Court Schedule API - GET /api/v1/courts/:id/schedule (Integration)', async
     assert.equal(jsonStr.includes('0988111222'), false); // user phone
     assert.equal(jsonStr.includes('Chủ Sân P08'), false); // user name
 
-    // Verify slots only have startTime, endTime, status
+    // Verify slots only have startTime, endTime, status, priceVnd
     for (const slot of res.body.data.slots) {
       const keys = Object.keys(slot).sort();
-      assert.deepEqual(keys, ['endTime', 'startTime', 'status']);
+      assert.deepEqual(keys, ['endTime', 'priceVnd', 'startTime', 'status']);
     }
   });
 

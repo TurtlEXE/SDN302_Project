@@ -3,9 +3,85 @@ import assert from 'node:assert/strict';
 import {
   calculateIntervalPrice,
   calculateBookingRequestTotal,
+  validatePricingRules,
+  sliceIntervalPricing,
 } from '../../src/services/booking/pricing.js';
 
-describe('Pricing Unit Tests (P08 - Pure Logic)', () => {
+describe('Pricing Unit Tests (P08 - Pure Logic & B03 Multi-Tier)', () => {
+  describe('B03 Multi-Tier Pricing & Pricing Rules', () => {
+    const sampleRules = [
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '18:00', pricePerHourVnd: 100000 },
+      { dayType: 'WEEKDAY', startTime: '18:00', endTime: '20:00', pricePerHourVnd: 150000 },
+      { dayType: 'WEEKEND', startTime: '17:00', endTime: '20:00', pricePerHourVnd: 200000 },
+    ];
+
+    it('required example: weekday 17:30-18:30 across 100k and 150k tiers produces exactly 125,000 VND', () => {
+      const mergedIntervals = [{ startTime: '17:30', endTime: '18:30' }];
+      const result = calculateBookingRequestTotal(mergedIntervals, sampleRules, 'WEEKDAY');
+
+      assert.equal(result.totalPriceVnd, 125000);
+      assert.equal(result.totalDurationMinutes, 60);
+      const snapshot = result.intervals[0].pricingSnapshot;
+      assert.equal(snapshot.length, 2);
+      assert.deepEqual(snapshot[0], {
+        startTime: '17:30',
+        endTime: '18:00',
+        startMinutes: 1050,
+        endMinutes: 1080,
+        durationMinutes: 30,
+        pricePerHourVnd: 100000,
+        segmentAmountVnd: 50000,
+      });
+      assert.deepEqual(snapshot[1], {
+        startTime: '18:00',
+        endTime: '18:30',
+        startMinutes: 1080,
+        endMinutes: 1110,
+        durationMinutes: 30,
+        pricePerHourVnd: 150000,
+        segmentAmountVnd: 75000,
+      });
+    });
+
+    it('weekend for same interval (17:30-18:30) applies weekend pricing rule (200k/h -> 200,000 VND)', () => {
+      const mergedIntervals = [{ startTime: '17:30', endTime: '18:30' }];
+      const result = calculateBookingRequestTotal(mergedIntervals, sampleRules, 'WEEKEND');
+
+      assert.equal(result.totalPriceVnd, 200000);
+      assert.equal(result.totalDurationMinutes, 60);
+      assert.equal(result.intervals[0].pricingSnapshot.length, 1);
+      assert.equal(result.intervals[0].pricingSnapshot[0].segmentAmountVnd, 200000);
+    });
+
+    it('rejects booking when any part of interval is missing pricing coverage (Criteria 2 B03)', () => {
+      // 16:30-17:30 has no rule for 16:30-17:00
+      const mergedIntervals = [{ startTime: '16:30', endTime: '17:30' }];
+      assert.throws(
+        () => calculateBookingRequestTotal(mergedIntervals, sampleRules, 'WEEKDAY'),
+        (err) => {
+          assert.equal(err.name, 'AppError');
+          assert.equal(err.statusCode, 400);
+          assert.match(err.message, /chưa có bảng giá áp dụng/);
+          return true;
+        }
+      );
+    });
+
+    it('validates pricing rules and rejects overlapping rules in the same dayType', () => {
+      const overlappingRules = [
+        { dayType: 'WEEKDAY', startTime: '17:00', endTime: '18:30', pricePerHourVnd: 100000 },
+        { dayType: 'WEEKDAY', startTime: '18:00', endTime: '19:00', pricePerHourVnd: 120000 },
+      ];
+      assert.throws(
+        () => validatePricingRules(overlappingRules),
+        (err) => {
+          assert.equal(err.name, 'AppError');
+          assert.match(err.message, /bị chồng lấn/);
+          return true;
+        }
+      );
+    });
+  });
   describe('calculateIntervalPrice', () => {
     it('calculates exact price for 120,000 VND/h at 30, 60, 90, 240 min (Criterion 6, Section 8.4)', () => {
       // 30 min = 60,000 VND

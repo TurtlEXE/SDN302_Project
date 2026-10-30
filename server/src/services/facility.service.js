@@ -7,6 +7,7 @@ import { storageClient } from '../integrations/storage.client.js';
 import { withTransaction } from '../database/transaction.js';
 import { parsePagination, formatPaginatedResponse } from '../utils/pagination.js';
 import { validateOperatingHours, hasAtLeastOneFullSlot } from '../utils/date-time.js';
+import { User } from '../models/user.model.js';
 import { AppError } from '../errors/app-error.js';
 import { ERROR_CODES } from '../errors/error-codes.js';
 
@@ -114,77 +115,121 @@ export class FacilityService {
   }
 
   async updateOwnerFacility(ownerId, facilityId, updateData) {
-    const facility = await this.assertOwnerFacility(ownerId, facilityId);
-    const fieldsToSet = {};
+    return withTransaction(async (session) => {
+      const facility = await this.assertOwnerFacility(ownerId, facilityId, session);
+      const fieldsToSet = {};
 
-    if (updateData.name !== undefined) fieldsToSet.name = updateData.name.trim();
-    if (updateData.description !== undefined) fieldsToSet.description = updateData.description.trim();
-    if (updateData.address !== undefined) fieldsToSet.address = updateData.address.trim();
-    if (updateData.province !== undefined) fieldsToSet.province = updateData.province.trim();
-    if (updateData.phoneNumber !== undefined) fieldsToSet.phoneNumber = updateData.phoneNumber.trim();
+      if (updateData.name !== undefined) fieldsToSet.name = updateData.name.trim();
+      if (updateData.description !== undefined) fieldsToSet.description = updateData.description.trim();
+      if (updateData.address !== undefined) fieldsToSet.address = updateData.address.trim();
+      if (updateData.province !== undefined) fieldsToSet.province = updateData.province.trim();
+      if (updateData.phoneNumber !== undefined) fieldsToSet.phoneNumber = updateData.phoneNumber.trim();
 
-    // Check transition to PUBLISHED: requires at least 1 active court
-    if (updateData.status !== undefined) {
-      if (!['DRAFT', 'PUBLISHED', 'PAUSED'].includes(updateData.status)) {
-        throw new AppError('Trạng thái cơ sở không hợp lệ.', 400, ERROR_CODES.VALIDATION_ERROR);
+      // Check transition to PUBLISHED: requires at least 1 active court
+      if (updateData.status !== undefined) {
+        if (!['DRAFT', 'PUBLISHED', 'PAUSED'].includes(updateData.status)) {
+          throw new AppError('Trạng thái cơ sở không hợp lệ.', 400, ERROR_CODES.VALIDATION_ERROR);
+        }
+
+        if (updateData.status === 'PUBLISHED') {
+          const hasActive = await courtRepository.hasActiveCourt(facilityId, session);
+          if (!hasActive) {
+            throw new AppError(
+              'Cơ sở phải có ít nhất một sân con đang nhận đặt để có thể công khai.',
+              400,
+              ERROR_CODES.FACILITY_CANNOT_PUBLISH
+            );
+          }
+        }
+        fieldsToSet.status = updateData.status;
       }
 
-      if (updateData.status === 'PUBLISHED') {
-        const hasActive = await courtRepository.hasActiveCourt(facilityId);
-        if (!hasActive) {
+      // Check operating hours updates and guard active schedules with write coordination (Issue 2 & B03 weeklySchedule)
+      const isUpdatingHours =
+        updateData.openTime !== undefined ||
+        updateData.closeTime !== undefined ||
+        updateData.weeklySchedule !== undefined;
+
+      if (isUpdatingHours) {
+        const newOpenTime = updateData.openTime || facility.openTime;
+        const newCloseTime = updateData.closeTime || facility.closeTime;
+
+        try {
+          validateOperatingHours(newOpenTime, newCloseTime);
+        } catch (err) {
+          throw new AppError(err.message, 400, ERROR_CODES.VALIDATION_ERROR);
+        }
+
+        const configuredSports = await facilitySportRepository.findByFacility(facilityId, session);
+
+        if (updateData.weeklySchedule !== undefined) {
+          const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+          for (const day of days) {
+            const daySched = updateData.weeklySchedule[day];
+            if (daySched && daySched.isOpen !== false) {
+              const dOpen = daySched.openTime || newOpenTime;
+              const dClose = daySched.closeTime || newCloseTime;
+              try {
+                validateOperatingHours(dOpen, dClose);
+              } catch (err) {
+                throw new AppError(`Giờ hoạt động ngày ${day} không hợp lệ: ${err.message}`, 400, ERROR_CODES.VALIDATION_ERROR);
+              }
+
+              for (const fs of configuredSports) {
+                if (!hasAtLeastOneFullSlot(dOpen, dClose, fs.slotStepMinutes)) {
+                  throw new AppError(
+                    `Khung giờ hoạt động ngày ${day} (${dOpen}-${dClose}) không đủ cho môn ${fs.sportId?.name || ''} với bước giờ ${fs.slotStepMinutes} phút.`,
+                    400,
+                    ERROR_CODES.VALIDATION_ERROR
+                  );
+                }
+              }
+            }
+          }
+          fieldsToSet.weeklySchedule = updateData.weeklySchedule;
+        }
+
+        // Verify that default hours accommodate configured sports
+        for (const fs of configuredSports) {
+          if (!hasAtLeastOneFullSlot(newOpenTime, newCloseTime, fs.slotStepMinutes)) {
+            throw new AppError(
+              `Khung giờ hoạt động không đủ cho môn ${fs.sportId?.name || ''} với bước giờ ${fs.slotStepMinutes} phút.`,
+              400,
+              ERROR_CODES.VALIDATION_ERROR
+            );
+          }
+        }
+
+        // Write coordination (Issue 2): Acquire write locks on all courts of this facility
+        // to prevent write skew against concurrent createBookingRequest and createCourtBlock
+        const allCourts = await courtRepository.findByFacility(facilityId, session);
+        const courtIds = allCourts.map((c) => c._id);
+        if (courtIds.length > 0) {
+          await courtRepository.touchCoordinationForCourts(courtIds, session);
+        }
+
+        // Guard within the transaction lock (Criterion 15)
+        const scheduleGuard = await courtRepository.checkActiveSchedulesForCourts(courtIds, session);
+
+        if (scheduleGuard.hasActiveSchedules) {
           throw new AppError(
-            'Cơ sở phải có ít nhất một sân con đang nhận đặt để có thể công khai.',
-            400,
-            ERROR_CODES.FACILITY_CANNOT_PUBLISH
+            'Không thể thay đổi giờ hoạt động vì cơ sở đang có đơn đặt hoặc lịch khóa chưa kết thúc.',
+            409,
+            ERROR_CODES.FACILITY_HAS_ACTIVE_BOOKINGS
           );
         }
-      }
-      fieldsToSet.status = updateData.status;
-    }
 
-    // Check operating hours updates and guard active schedules
-    if (updateData.openTime !== undefined || updateData.closeTime !== undefined) {
-      const newOpenTime = updateData.openTime || facility.openTime;
-      const newCloseTime = updateData.closeTime || facility.closeTime;
+        fieldsToSet.openTime = newOpenTime;
+        fieldsToSet.closeTime = newCloseTime;
+        fieldsToSet.operatingHoursVersion = (facility.operatingHoursVersion || 1) + 1;
 
-      try {
-        validateOperatingHours(newOpenTime, newCloseTime);
-      } catch (err) {
-        throw new AppError(err.message, 400, ERROR_CODES.VALIDATION_ERROR);
+        // Invalidate cached client drafts across all sports of this facility (Issue 3)
+        await facilitySportRepository.incrementConfigVersionForFacility(facilityId, session);
       }
 
-      // Verify that every configured FacilitySport can still produce at least one full slot
-      const configuredSports = await facilitySportRepository.findByFacility(facilityId);
-      for (const fs of configuredSports) {
-        if (!hasAtLeastOneFullSlot(newOpenTime, newCloseTime, fs.slotStepMinutes)) {
-          throw new AppError(
-            `Khung giờ hoạt động không đủ cho môn ${fs.sportId?.name || ''} với bước giờ ${fs.slotStepMinutes} phút.`,
-            400,
-            ERROR_CODES.VALIDATION_ERROR
-          );
-        }
-      }
-
-      // Guard (Criterion 15): Operating hours change is rejected if facility has active/unexpired bookings or blocks
-      const allCourts = await courtRepository.findByFacility(facilityId);
-      const courtIds = allCourts.map((c) => c._id);
-      const scheduleGuard = await courtRepository.checkActiveSchedulesForCourts(courtIds);
-
-      if (scheduleGuard.hasActiveSchedules) {
-        throw new AppError(
-          'Không thể thay đổi giờ hoạt động vì cơ sở đang có đơn đặt hoặc lịch khóa chưa kết thúc.',
-          409,
-          ERROR_CODES.FACILITY_HAS_ACTIVE_BOOKINGS
-        );
-      }
-
-      fieldsToSet.openTime = newOpenTime;
-      fieldsToSet.closeTime = newCloseTime;
-      fieldsToSet.operatingHoursVersion = (facility.operatingHoursVersion || 1) + 1;
-    }
-
-    const updated = await facilityRepository.updateById(facilityId, fieldsToSet);
-    return facilityRepository.toDTO(updated);
+      const updated = await facilityRepository.updateById(facilityId, fieldsToSet, session);
+      return facilityRepository.toDTO(updated);
+    });
   }
 
   // ==========================================
@@ -327,50 +372,58 @@ export class FacilityService {
   }
 
   async updateFacilitySportStep(ownerId, facilityId, facilitySportId, { slotStepMinutes }) {
-    const facility = await this.assertOwnerFacility(ownerId, facilityId);
-    const stepNum = Number(slotStepMinutes);
+    return withTransaction(async (session) => {
+      const facility = await this.assertOwnerFacility(ownerId, facilityId, session);
+      const stepNum = Number(slotStepMinutes);
 
-    if (![30, 60, 90].includes(stepNum)) {
-      throw new AppError(
-        'Bước giờ cấu hình phải là 30, 60 hoặc 90 phút.',
-        400,
-        ERROR_CODES.VALIDATION_ERROR
-      );
-    }
+      if (![30, 60, 90].includes(stepNum)) {
+        throw new AppError(
+          'Bước giờ cấu hình phải là 30, 60 hoặc 90 phút.',
+          400,
+          ERROR_CODES.VALIDATION_ERROR
+        );
+      }
 
-    const facilitySport = await facilitySportRepository.findById(facilitySportId);
-    if (!facilitySport || facilitySport.facilityId.toString() !== facilityId.toString()) {
-      throw new AppError(
-        'Không tìm thấy cấu hình môn thể thao tại cơ sở này.',
-        404,
-        ERROR_CODES.FACILITY_SPORT_NOT_FOUND
-      );
-    }
+      const facilitySport = await facilitySportRepository.findById(facilitySportId, session);
+      if (!facilitySport || facilitySport.facilityId.toString() !== facilityId.toString()) {
+        throw new AppError(
+          'Không tìm thấy cấu hình môn thể thao tại cơ sở này.',
+          404,
+          ERROR_CODES.FACILITY_SPORT_NOT_FOUND
+        );
+      }
 
-    // Check if facility hours accommodate new step
-    if (!hasAtLeastOneFullSlot(facility.openTime, facility.closeTime, stepNum)) {
-      throw new AppError(
-        `Giờ hoạt động (${facility.openTime}-${facility.closeTime}) không đủ cho một bước giờ ${stepNum} phút.`,
-        400,
-        ERROR_CODES.VALIDATION_ERROR
-      );
-    }
+      // Check if facility hours accommodate new step
+      if (!hasAtLeastOneFullSlot(facility.openTime, facility.closeTime, stepNum)) {
+        throw new AppError(
+          `Giờ hoạt động (${facility.openTime}-${facility.closeTime}) không đủ cho một bước giờ ${stepNum} phút.`,
+          400,
+          ERROR_CODES.VALIDATION_ERROR
+        );
+      }
 
-    // Guard (Criterion 15): Step update is rejected if any court in this FacilitySport has active schedules
-    const courts = await courtRepository.findByFacilitySport(facilitySportId);
-    const courtIds = courts.map((c) => c._id);
-    const scheduleGuard = await courtRepository.checkActiveSchedulesForCourts(courtIds);
+      // Write coordination (Issue 2): Acquire write locks on all courts of this facility sport
+      // to prevent write skew against concurrent createBookingRequest and createCourtBlock
+      const courts = await courtRepository.findByFacilitySport(facilitySportId, session);
+      const courtIds = courts.map((c) => c._id);
+      if (courtIds.length > 0) {
+        await courtRepository.touchCoordinationForCourts(courtIds, session);
+      }
 
-    if (scheduleGuard.hasActiveSchedules) {
-      throw new AppError(
-        'Không thể thay đổi bước giờ vì nhóm môn đang có đơn đặt hoặc lịch khóa chưa kết thúc.',
-        409,
-        ERROR_CODES.FACILITY_HAS_ACTIVE_BOOKINGS
-      );
-    }
+      // Guard within the transaction lock (Criterion 15)
+      const scheduleGuard = await courtRepository.checkActiveSchedulesForCourts(courtIds, session);
 
-    const updated = await facilitySportRepository.updateStep(facilitySportId, stepNum);
-    return facilitySportRepository.toDTO(updated);
+      if (scheduleGuard.hasActiveSchedules) {
+        throw new AppError(
+          'Không thể thay đổi bước giờ vì nhóm môn đang có đơn đặt hoặc lịch khóa chưa kết thúc.',
+          409,
+          ERROR_CODES.FACILITY_HAS_ACTIVE_BOOKINGS
+        );
+      }
+
+      const updated = await facilitySportRepository.updateStep(facilitySportId, stepNum, session);
+      return facilitySportRepository.toDTO(updated);
+    });
   }
 
   // ==========================================
@@ -409,6 +462,16 @@ export class FacilityService {
     const facility = await facilityRepository.findById(facilityId);
 
     if (!facility || facility.status !== 'PUBLISHED' || facility.isLockedByAdmin) {
+      throw new AppError(
+        'Không tìm thấy cơ sở thể thao công khai.',
+        404,
+        ERROR_CODES.FACILITY_NOT_FOUND
+      );
+    }
+
+    // Verify facility owner is active and not locked (PUB-01, Criterion 19, Issue 1)
+    const owner = await User.findById(facility.ownerId);
+    if (!owner || owner.isLocked || !owner.activatedAt) {
       throw new AppError(
         'Không tìm thấy cơ sở thể thao công khai.',
         404,

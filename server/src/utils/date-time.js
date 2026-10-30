@@ -150,3 +150,65 @@ export function getCurrentTimeVN(date = new Date()) {
   return formatter.format(date);
 }
 
+export const DAY_OF_WEEK_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+/**
+ * Gets day of week key (lowercase, e.g. 'monday') for a YYYY-MM-DD date string
+ * Evaluated at noon UTC to ensure exact match with Asia/Ho_Chi_Minh calendar day
+ * @param {string} dateStr
+ * @returns {'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday'}
+ */
+export function getDayOfWeekKey(dateStr) {
+  if (!isValidDateString(dateStr)) {
+    throw new Error(`Invalid date format '${dateStr}'. Expected YYYY-MM-DD.`);
+  }
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  return DAY_OF_WEEK_KEYS[date.getUTCDay()];
+}
+
+/**
+ * Resolves day type ('WEEKDAY' or 'WEEKEND') in Asia/Ho_Chi_Minh
+ * Weekday: Monday - Friday (1..5)
+ * Weekend: Saturday - Sunday (6, 0)
+ * @param {string} dateStr
+ * @returns {'WEEKDAY' | 'WEEKEND'}
+ */
+export function getDayType(dateStr) {
+  const dayKey = getDayOfWeekKey(dateStr);
+  return dayKey === 'saturday' || dayKey === 'sunday' ? 'WEEKEND' : 'WEEKDAY';
+}
+
+/**
+ * Resolves effective operating hours of a facility for a specific business date
+ * Uses facility.weeklySchedule[dayOfWeekKey] if available, otherwise falls back to facility.openTime/closeTime.
+ * @param {object} facility
+ * @param {string} dateStr
+ * @returns {{ isOpen: boolean, openTime: string | null, closeTime: string | null, dayOfWeek: string, dayType: 'WEEKDAY' | 'WEEKEND' }}
+ */
+export function getFacilityOperatingHoursForDate(facility, dateStr) {
+  const dayKey = getDayOfWeekKey(dateStr);
+  const dayType = dayKey === 'saturday' || dayKey === 'sunday' ? 'WEEKEND' : 'WEEKDAY';
+  const daySchedule = facility?.weeklySchedule?.[dayKey];
+
+  if (daySchedule) {
+    const isOpen = daySchedule.isOpen !== false;
+    return {
+      isOpen,
+      openTime: isOpen ? daySchedule.openTime || facility?.openTime || '06:00' : null,
+      closeTime: isOpen ? daySchedule.closeTime || facility?.closeTime || '22:00' : null,
+      dayOfWeek: dayKey,
+      dayType,
+    };
+  }
+
+  return {
+    isOpen: true,
+    openTime: facility?.openTime || '06:00',
+    closeTime: facility?.closeTime || '22:00',
+    dayOfWeek: dayKey,
+    dayType,
+  };
+}
+
+

@@ -10,6 +10,9 @@ router.use(authenticate);
 // POST /api/v1/booking-requests (Customer creates booking request)
 router.post('/', bookingRequestController.createBookingRequest.bind(bookingRequestController));
 
+// POST /api/v1/booking-requests/quote (Official price quote for slots)
+router.post('/quote', bookingRequestController.getBookingQuote.bind(bookingRequestController));
+
 // GET /api/v1/booking-requests/:id (View booking request details and child bookings)
 router.get('/:id', bookingRequestController.getBookingRequestById.bind(bookingRequestController));
 

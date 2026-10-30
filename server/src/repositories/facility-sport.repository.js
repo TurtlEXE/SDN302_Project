@@ -60,6 +60,19 @@ export class FacilitySportRepository {
   }
 
   /**
+   * Increments configVersion for all FacilitySport documents of a facility (Issue 3)
+   * @param {string} facilityId
+   * @param {import('mongoose').ClientSession} [session=null]
+   */
+  async incrementConfigVersionForFacility(facilityId, session = null) {
+    return FacilitySport.updateMany(
+      { facilityId },
+      { $inc: { configVersion: 1 } },
+      { session }
+    );
+  }
+
+  /**
    * Transforms document to FacilitySportDTO
    * @param {Object} facilitySport
    * @param {string} [sportName]

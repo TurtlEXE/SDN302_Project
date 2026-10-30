@@ -104,9 +104,14 @@ export class CourtRepository {
     if (updateData.description !== undefined) updateOps.$set.description = updateData.description.trim();
     if (updateData.isActive !== undefined) updateOps.$set.isActive = Boolean(updateData.isActive);
 
+    if (updateData.pricingRules !== undefined) {
+      updateOps.$set.pricingRules = updateData.pricingRules;
+      updateOps.$inc = { ...(updateOps.$inc || {}), priceVersion: 1 };
+    }
+
     if (updateData.pricePerHourVnd !== undefined) {
       updateOps.$set.pricePerHourVnd = Number(updateData.pricePerHourVnd);
-      updateOps.$inc = { priceVersion: 1 };
+      updateOps.$inc = { ...(updateOps.$inc || {}), priceVersion: 1 };
     }
 
     return Court.findByIdAndUpdate(id, updateOps, { new: true, session })
@@ -170,6 +175,43 @@ export class CourtRepository {
   }
 
   /**
+   * Acquires a write lock on Court document to coordinate with facility/sport configuration updates (Issue 2).
+   * Prevents write skew between booking creation / court blocks and operating hours / slot step changes.
+   *
+   * @param {string|import('mongoose').Types.ObjectId} courtId
+   * @param {import('mongoose').ClientSession} session - Active transaction session (required)
+   * @returns {Promise<import('../models/court.model.js').Court>}
+   */
+  async touchCoordination(courtId, session) {
+    if (!session) {
+      throw new Error('touchCoordination requires an active MongoDB ClientSession.');
+    }
+    return Court.findOneAndUpdate(
+      { _id: courtId },
+      { $inc: { bookingCoordinationVersion: 1 } },
+      { session, new: true }
+    );
+  }
+
+  /**
+   * Acquires write locks on multiple Court documents to coordinate configuration updates (Issue 2).
+   *
+   * @param {Array<string|import('mongoose').Types.ObjectId>} courtIds
+   * @param {import('mongoose').ClientSession} session - Active transaction session (required)
+   */
+  async touchCoordinationForCourts(courtIds, session) {
+    if (!session) {
+      throw new Error('touchCoordinationForCourts requires an active MongoDB ClientSession.');
+    }
+    if (!courtIds || courtIds.length === 0) return;
+    return Court.updateMany(
+      { _id: { $in: courtIds } },
+      { $inc: { bookingCoordinationVersion: 1 } },
+      { session }
+    );
+  }
+
+  /**
    * Transforms document to CourtDTO
    * @param {Object} court
    * @param {string} [sportName]
@@ -204,6 +246,7 @@ export class CourtRepository {
       description: court.description || '',
       pricePerHourVnd: court.pricePerHourVnd,
       priceVersion: court.priceVersion,
+      pricingRules: court.pricingRules || [],
       isActive: court.isActive,
       createdAt: court.createdAt,
       updatedAt: court.updatedAt,

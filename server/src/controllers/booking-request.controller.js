@@ -23,6 +23,22 @@ export class BookingRequestController {
   }
 
   /**
+   * POST /api/v1/booking-requests/quote
+   * Official server quote for selected slots (B03)
+   */
+  async getBookingQuote(req, res, next) {
+    try {
+      const result = await bookingRequestService.getBookingQuote(req.user, req.body);
+      return res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * GET /api/v1/booking-requests/:id
    * Customer / Owner / Admin views booking request details and child bookings
    */

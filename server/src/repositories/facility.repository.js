@@ -345,6 +345,7 @@ export class FacilityRepository {
       phoneNumber: facility.phoneNumber,
       openTime: facility.openTime,
       closeTime: facility.closeTime,
+      weeklySchedule: facility.weeklySchedule || null,
       operatingHoursVersion: facility.operatingHoursVersion || 1,
       minPricePerHour:
         minPricePerHour !== null

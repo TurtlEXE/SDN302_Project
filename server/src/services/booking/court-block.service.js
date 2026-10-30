@@ -10,6 +10,7 @@ import { actionLogRepository } from '../../repositories/action-log.repository.js
 import { withTransaction } from '../../database/transaction.js';
 import { mergeContiguousSlots, isOverlapping } from './slot-merger.js';
 import { validateBookingDateRange, validateAdvanceNotice } from './booking-policy.js';
+import { getFacilityOperatingHoursForDate } from '../../utils/date-time.js';
 import { AppError } from '../../errors/app-error.js';
 import { ERROR_CODES } from '../../errors/error-codes.js';
 
@@ -72,11 +73,16 @@ export class CourtBlockService {
       throw AppError.notFound('Không tìm thấy cấu hình môn thể thao tại cơ sở.', ERROR_CODES.FACILITY_SPORT_NOT_FOUND);
     }
 
-    // 4. Merge contiguous slots & validate slot boundaries
+    // 4. Resolve weekly operating hours and merge contiguous slots (B03)
+    const dayHours = getFacilityOperatingHoursForDate(facility, bookingDate);
+    if (!dayHours.isOpen) {
+      throw AppError.badRequest('Cơ sở thể thao không mở cửa vào ngày này.', ERROR_CODES.VALIDATION_ERROR);
+    }
+
     const mergedIntervals = mergeContiguousSlots(
       selectedSlots,
-      facility.openTime,
-      facility.closeTime,
+      dayHours.openTime,
+      dayHours.closeTime,
       facilitySport.slotStepMinutes
     );
 
@@ -86,8 +92,18 @@ export class CourtBlockService {
 
     // 6. Execute atomic creation within MongoDB ACID transaction
     return withTransaction(async (session) => {
-      // 6.1. Acquire coordination lock on CourtDaySchedule
+      // 6.1. Acquire coordination write lock on Court document (Issue 2) and CourtDaySchedule
+      await courtRepository.touchCoordination(courtId, session);
       await courtDayScheduleRepository.acquireCoordinationLock(courtId, bookingDate, session);
+
+      // Verify that facilitySport configuration has not changed concurrently (Issue 2)
+      const liveFS = await facilitySportRepository.findById(court.facilitySportId, session);
+      if (liveFS && liveFS.configVersion !== facilitySport.configVersion) {
+        throw AppError.conflict(
+          'Cấu hình bước giờ đã thay đổi. Vui lòng tải lại thông tin sân.',
+          ERROR_CODES.CONFIG_VERSION_MISMATCH
+        );
+      }
 
       const now = new Date();
 
