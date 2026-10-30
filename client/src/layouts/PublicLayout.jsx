@@ -297,16 +297,16 @@ export function PublicLayout() {
                 Hỗ trợ & Bảo mật
               </h4>
               <ul className="space-y-2 text-xs text-slate-600">
-                <li>Bảo mật tài khoản: JWT RAM & HttpOnly</li>
-                <li>Thanh toán trực tuyến VNPay 100%</li>
-                <li>Hotline: 1900 6868 (08:00 - 22:00)</li>
+                <li>Bảo mật tài khoản & thông tin cá nhân</li>
+                <li>Thanh toán trực tuyến an toàn qua VNPay</li>
+                <li>Hỗ trợ khách hàng: 08:00 - 22:00 hàng ngày</li>
               </ul>
             </div>
           </div>
 
           <div className="border-t border-slate-100 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400">
             <p>© 2026 SportBooking Platform. All rights reserved.</p>
-            <p className="mt-2 sm:mt-0">Thiết kế chuẩn kỹ thuật 3 Tier - MongoDB ACID</p>
+            <p className="mt-2 sm:mt-0">Nền tảng đặt sân thể thao trực tuyến tin cậy</p>
           </div>
         </div>
       </footer>

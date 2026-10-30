@@ -8,7 +8,7 @@
   "gates": {
     "BE_READY": {
       "status": "STALE",
-      "reason": "Đang thực hiện logic-fix-B01: cập nhật logic lịch (15m advance notice), idempotency retry resume (paymentUrl, guestAccessLink), và contract DTO getGuestPaymentOrder",
+      "reason": "Đang thực hiện logic-fix-B04: API lịch tổng hợp cơ sở theo ngày (tất cả môn & sân) và đồng bộ trạng thái",
       "phase": "P14",
       "evidence": "docs/phase-reports/P14-review.md",
       "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
@@ -17,7 +17,7 @@
     },
     "RELEASE_READY": {
       "status": "STALE",
-      "reason": "Đang thực hiện logic-fix-B01: cập nhật luồng đặt sân và thanh toán xuyên suốt backend và frontend",
+      "reason": "Đang thực hiện logic-fix-B04: thiết kế lại màn chi tiết cơ sở và lịch đặt sân đa môn, đa sân theo ngày",
       "phase": "P20",
       "evidence": "docs/phase-reports/P20-review.md",
       "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",

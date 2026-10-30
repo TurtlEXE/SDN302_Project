@@ -45,4 +45,13 @@ export const facilityService = {
   async getPublicFacilityById(id) {
     return apiClient.get(`/facilities/${id}`);
   },
+
+  /**
+   * Get consolidated facility schedule by ID and date (B04)
+   * @param {string} id - facilityId
+   * @param {string} date - 'YYYY-MM-DD'
+   */
+  async getFacilitySchedule(id, date) {
+    return apiClient.get(`/facilities/${id}/schedule?date=${encodeURIComponent(date)}`);
+  },
 };
