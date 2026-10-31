@@ -33,9 +33,6 @@ export class ScheduleService {
     const todayStr = timeOverrides?.customTodayStr || getCurrentDateVN();
     const nowTimeStr = timeOverrides?.customNowTimeStr || getCurrentTimeVN();
     const now = timeOverrides?.customNowDate || new Date();
-    const role = options?.forRole || timeOverrides?.role || 'CUSTOMER';
-    const isOwner = role === 'OWNER';
-    const minAdvanceMinutes = isOwner ? 0 : 15;
 
     // 1. Validate date range (today up to 30 days ahead)
     validateBookingDateRange(dateStr, 30, todayStr);
@@ -62,6 +59,17 @@ export class ScheduleService {
         ERROR_CODES.FACILITY_NOT_FOUND
       );
     }
+
+    // Resolve owner role: verified ownership from authenticated requestingUser, or explicit forRole in unit tests (INT-01 fix)
+    let isOwner = false;
+    if (options?.requestingUser) {
+      isOwner =
+        options.requestingUser.role === 'OWNER' &&
+        facility.ownerId.toString() === options.requestingUser._id.toString();
+    } else if (options?.forRole || timeOverrides?.role) {
+      isOwner = (options?.forRole || timeOverrides?.role) === 'OWNER';
+    }
+    const minAdvanceMinutes = isOwner ? 0 : 15;
 
     // 4. Fetch facilitySport configuration
     const facilitySport = await facilitySportRepository.findById(court.facilitySportId);
@@ -220,9 +228,6 @@ export class ScheduleService {
     const todayStr = timeOverrides?.customTodayStr || getCurrentDateVN();
     const nowTimeStr = timeOverrides?.customNowTimeStr || getCurrentTimeVN();
     const now = timeOverrides?.customNowDate || new Date();
-    const role = options?.forRole || timeOverrides?.role || 'CUSTOMER';
-    const isOwner = role === 'OWNER';
-    const minAdvanceMinutes = isOwner ? 0 : 15;
 
     // 1. Validate date range (today up to 30 days ahead)
     validateBookingDateRange(dateStr, 30, todayStr);
@@ -243,6 +248,17 @@ export class ScheduleService {
         ERROR_CODES.FACILITY_NOT_FOUND
       );
     }
+
+    // Resolve owner role: verified ownership from authenticated requestingUser, or explicit forRole in unit tests (INT-01 fix)
+    let isOwner = false;
+    if (options?.requestingUser) {
+      isOwner =
+        options.requestingUser.role === 'OWNER' &&
+        facility.ownerId.toString() === options.requestingUser._id.toString();
+    } else if (options?.forRole || timeOverrides?.role) {
+      isOwner = (options?.forRole || timeOverrides?.role) === 'OWNER';
+    }
+    const minAdvanceMinutes = isOwner ? 0 : 15;
 
     // 3. Resolve operating hours for this specific day of week
     const dayHours = getFacilityOperatingHoursForDate(facility, dateStr);

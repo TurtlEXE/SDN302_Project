@@ -39,6 +39,17 @@ export class BookingLifecycleService {
       status: booking.status,
       paymentStatus: booking.paymentStatus,
       holdExpiresAt: booking.holdExpiresAt ? new Date(booking.holdExpiresAt).toISOString() : null,
+      pricingSnapshot: Array.isArray(booking.pricingSnapshot)
+        ? booking.pricingSnapshot.map((seg) => ({
+            startTime: seg.startTime,
+            endTime: seg.endTime,
+            startMinutes: seg.startMinutes,
+            endMinutes: seg.endMinutes,
+            durationMinutes: seg.durationMinutes,
+            pricePerHourVnd: seg.pricePerHourVnd,
+            segmentAmountVnd: seg.segmentAmountVnd,
+          }))
+        : [],
       cancellation: booking.cancellation || null,
       completion: booking.completion || null,
       createdAt: booking.createdAt ? new Date(booking.createdAt).toISOString() : null,

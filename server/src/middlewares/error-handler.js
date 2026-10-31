@@ -29,6 +29,14 @@ export function errorHandler(err, req, res, next) {
     ]);
   }
 
+  // Handle Mongo duplicate key error (E11000) - INT-05 fix
+  if (err.code === 11000 || (err.name === 'MongoServerError' && err.code === 11000)) {
+    error = AppError.conflict(
+      'Dữ liệu bị trùng lặp hoặc yêu cầu đang được xử lý đồng thời. Vui lòng thử lại.',
+      ERROR_CODES.SCHEDULE_CONFLICT
+    );
+  }
+
   // Fallback for non-AppError
   if (!(error instanceof AppError)) {
     const statusCode = error.statusCode || error.status || 500;

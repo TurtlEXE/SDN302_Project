@@ -21,6 +21,7 @@ import { EmailOutbox } from '../../src/models/email-outbox.model.js';
 import { ActionLog } from '../../src/models/action-log.model.js';
 import { jwtService } from '../../src/services/jwt.service.js';
 import { getCurrentDateVN } from '../../src/utils/date-time.js';
+import { addDaysToDateVN } from '../../src/services/booking/booking-policy.js';
 
 test('BE-READY Final Backend Verification & Audit Suite (P14)', async (t) => {
   t.before(async () => {
@@ -62,6 +63,7 @@ test('BE-READY Final Backend Verification & Audit Suite (P14)', async (t) => {
   let court2 = null;
 
   const todayStr = getCurrentDateVN();
+  const futureBookingDate = addDaysToDateVN(todayStr, 2);
 
   await t.test('0. Setup audit actors, facilities, courts', async () => {
     const passwordHash = await bcrypt.hash('Password123!', 10);
@@ -313,7 +315,7 @@ test('BE-READY Final Backend Verification & Audit Suite (P14)', async (t) => {
       .set('Authorization', `Bearer ${customer1Token}`)
       .send({
         courtId: court1._id.toString(),
-        bookingDate: todayStr,
+        bookingDate: futureBookingDate,
         configVersion: 1,
         selectedSlots: [
           { startTime: '19:00', endTime: '19:30' },
@@ -476,7 +478,7 @@ test('BE-READY Final Backend Verification & Audit Suite (P14)', async (t) => {
       .set('Authorization', `Bearer ${customer1Token}`)
       .send({
         courtId: court1._id.toString(),
-        bookingDate: todayStr,
+        bookingDate: futureBookingDate,
         configVersion: 1,
         selectedSlots: [{ startTime: '20:00', endTime: '20:30' }],
         contactName: customer1.fullName,

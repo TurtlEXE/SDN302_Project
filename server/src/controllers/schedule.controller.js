@@ -10,7 +10,7 @@ export class ScheduleController {
   async getCourtSchedule(req, res, next) {
     try {
       const { id } = req.params;
-      const { date, role } = req.query;
+      const { date } = req.query;
 
       if (!date) {
         throw AppError.badRequest(
@@ -19,12 +19,9 @@ export class ScheduleController {
         );
       }
 
-      // Check role: authenticated user role or query role for OWNER
-      const effectiveRole =
-        req.user?.role === 'OWNER' || role === 'OWNER' ? 'OWNER' : 'CUSTOMER';
-
+      // Check role based on authenticated user and facility ownership (INT-01 fix)
       const scheduleDTO = await scheduleService.getCourtSchedule(id, date, null, {
-        forRole: effectiveRole,
+        requestingUser: req.user || null,
       });
 
       return res.status(200).json({
@@ -43,7 +40,7 @@ export class ScheduleController {
   async getFacilitySchedule(req, res, next) {
     try {
       const { id } = req.params;
-      const { date, role } = req.query;
+      const { date } = req.query;
 
       if (!date) {
         throw AppError.badRequest(
@@ -52,11 +49,9 @@ export class ScheduleController {
         );
       }
 
-      const effectiveRole =
-        req.user?.role === 'OWNER' || role === 'OWNER' ? 'OWNER' : 'CUSTOMER';
-
+      // Check role based on authenticated user and facility ownership (INT-01 fix)
       const scheduleDTO = await scheduleService.getFacilitySchedule(id, date, null, {
-        forRole: effectiveRole,
+        requestingUser: req.user || null,
       });
 
       return res.status(200).json({
