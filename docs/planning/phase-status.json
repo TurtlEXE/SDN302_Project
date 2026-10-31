@@ -7,22 +7,22 @@
   "note": "Toàn bộ 21/21 phases (P00–P20) của dự án SportBooking Platform đã hoàn thành và được nghiệm thu ACCEPTED ngày 31/10/2026 bởi Independent Reviewer (được người dùng ủy quyền trực tiếp). Cổng chất lượng RELEASE_READY chính thức mở (ACCEPTED). Đã kiểm chứng độc lập: 5/5 files khớp 100% SHA-256 manifest, 15/15 E2E subtests pass 100%, 52/52 backend tests pass 100%, 29/29 client test files (138 tests) pass 100%, Vite build thành công 0 lỗi, lint 172 files backend đạt chuẩn, seed-demo khởi tạo thành công. Đáp ứng đầy đủ 64/64 tiêu chí nghiệm thu tại docs/features.md. Chi tiết tại docs/phase-reports/P20-review.md.",
   "gates": {
     "BE_READY": {
-      "status": "STALE",
-      "reason": "Đang thực hiện logic-fix-B04: API lịch tổng hợp cơ sở theo ngày (tất cả môn & sân) và đồng bộ trạng thái",
+      "status": "ACCEPTED",
+      "reason": "Hoàn tất kiểm chứng hồi quy toàn diện backend sau các batch logic-fix B01–B04 và remediation INT-01..07 (56/56 test files pass 100%)",
       "phase": "P14",
-      "evidence": "docs/phase-reports/P14-review.md",
-      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
-      "accepted_on": "2026-10-30",
-      "accepted_revision": "docs/phase-reports/P14-manifest.sha256"
-    },
-    "RELEASE_READY": {
-      "status": "STALE",
-      "reason": "Đang thực hiện logic-fix-B04: thiết kế lại màn chi tiết cơ sở và lịch đặt sân đa môn, đa sân theo ngày",
-      "phase": "P20",
-      "evidence": "docs/phase-reports/P20-review.md",
+      "evidence": "docs/phase-reports/logic-fix-integration-review.md",
       "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
       "accepted_on": "2026-10-31",
-      "accepted_revision": "docs/phase-reports/P20-manifest.sha256 (Khớp 100% 5/5 files thực tế trên đĩa)"
+      "accepted_revision": "docs/phase-reports/logic-fix-integration-review.md"
+    },
+    "RELEASE_READY": {
+      "status": "ACCEPTED",
+      "reason": "Hoàn tất kiểm chứng hồi quy toàn diện full-stack sau các batch logic-fix B01–B04 và remediation INT-01..07 (30/30 client test files pass 100%, vite build thành công 0 lỗi, 56/56 backend test files pass 100%)",
+      "phase": "P20",
+      "evidence": "docs/phase-reports/logic-fix-integration-review.md",
+      "accepted_by": "Independent Reviewer (Ủy quyền bởi người dùng)",
+      "accepted_on": "2026-10-31",
+      "accepted_revision": "docs/phase-reports/logic-fix-integration-review.md"
     }
   },
   "phases": [
