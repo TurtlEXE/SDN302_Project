@@ -30,6 +30,8 @@ export function CheckoutPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [priceMismatch, setPriceMismatch] = useState(false);
+  const [refreshingQuote, setRefreshingQuote] = useState(false);
 
   // Active Hold Modal State
   const [holdData, setHoldData] = useState(null);
@@ -134,6 +136,14 @@ export function CheckoutPage() {
 
         // Automatically trigger redirect to VNPay
         window.location.href = data.paymentOrder.paymentUrl;
+      } else {
+        // INT-03 fix: paymentUrl is missing or booking is expired/closed
+        sessionStorage.removeItem('sport_booking_draft');
+        const isExp = data?.isExpired || data?.status === 'EXPIRED';
+        const errMsg = isExp
+          ? 'Thời gian giữ chỗ của đơn này đã hết hạn. Vui lòng quay lại lịch để chọn lại khung giờ.'
+          : 'Không thể tạo liên kết thanh toán cho yêu cầu này (đơn có thể đã đóng hoặc đã được xử lý).';
+        setError(errMsg);
       }
     } catch (err) {
       const msg =
@@ -142,8 +152,70 @@ export function CheckoutPage() {
         err.message ||
         'Không thể tạo yêu cầu đặt sân. Vui lòng kiểm tra lại khung giờ.';
       setError(msg);
+
+      // INT-04 fix: detect price version mismatch (409)
+      const errCode = err.response?.data?.error?.code || err.response?.data?.errorCode;
+      if (
+        err.response?.status === 409 &&
+        (errCode === 'CONFIG_VERSION_MISMATCH' || msg.includes('Báo giá đã thay đổi') || msg.includes('bảng giá'))
+      ) {
+        setPriceMismatch(true);
+      }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRefreshQuote = async () => {
+    if (!draft) return;
+    try {
+      setRefreshingQuote(true);
+      setError(null);
+
+      const selectedSlots =
+        draft.selectedSlots && draft.selectedSlots.length > 0
+          ? draft.selectedSlots.map((s) => ({
+              startTime: s.startTime,
+              endTime: s.endTime,
+            }))
+          : (draft.ranges || []).map((r) => ({
+              startTime: r.startTime,
+              endTime: r.endTime,
+            }));
+
+      const res = await bookingService.getBookingQuote({
+        courtId: draft.courtId,
+        bookingDate: draft.bookingDate,
+        selectedSlots,
+      });
+
+      const quote = res?.data;
+      if (quote) {
+        const updatedDraft = {
+          ...draft,
+          priceVersion: quote.priceVersion,
+          operatingHoursVersion: quote.operatingHoursVersion,
+          configVersion: quote.configVersion,
+          totalPriceVnd: quote.totalAmountVnd,
+          ranges: quote.intervals || draft.ranges,
+        };
+        setDraft(updatedDraft);
+        sessionStorage.setItem('sport_booking_draft', JSON.stringify(updatedDraft));
+        setPriceMismatch(false);
+        // Refresh idempotency key for the retry with new price
+        idempotencyKeyRef.current = crypto.randomUUID
+          ? crypto.randomUUID()
+          : `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      }
+    } catch (refreshErr) {
+      setError(
+        refreshErr.response?.data?.error?.message ||
+        refreshErr.response?.data?.message ||
+        refreshErr.message ||
+        'Không thể cập nhật báo giá. Vui lòng thử lại.'
+      );
+    } finally {
+      setRefreshingQuote(false);
     }
   };
 
@@ -222,11 +294,23 @@ export function CheckoutPage() {
         </div>
       )}
 
-      {/* Error alert */}
+      {/* Error alert with INT-04 price refresh action */}
       {error && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center space-x-2 text-xs">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span>{error}</span>
+          </div>
+          {priceMismatch && (
+            <button
+              type="button"
+              onClick={handleRefreshQuote}
+              disabled={refreshingQuote}
+              className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold transition shrink-0 flex items-center justify-center space-x-1 disabled:opacity-50"
+            >
+              {refreshingQuote ? 'Đang cập nhật giá...' : 'Cập nhật giá mới & Tiếp tục'}
+            </button>
+          )}
         </div>
       )}
 

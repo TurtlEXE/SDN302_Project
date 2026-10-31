@@ -41,13 +41,13 @@ export function SelectedRangesSummary({
     pricingRules: pricingRules || court?.pricingRules || [],
     pricePerHourVnd: court?.pricePerHourVnd || 0,
   };
-  const { ranges: pricedRanges, totalDurationMinutes, totalPriceVnd } =
+  const { ranges: pricedRanges, totalDurationMinutes, totalPriceVnd, hasMissingPrice } =
     calculateEstimatedPrice(mergedRanges, pricingInput, resolvedDayType);
 
   const isDisjoint = pricedRanges.length > 1;
 
   const handleProceed = () => {
-    if (pricedRanges.length === 0) return;
+    if (pricedRanges.length === 0 || hasMissingPrice) return;
 
     let existingIdempKey = null;
     try {
@@ -221,15 +221,21 @@ export function SelectedRangesSummary({
             <div className="text-lg font-black text-slate-900">
               Tổng tạm tính:{' '}
               <span className="text-brand-600" data-testid="total-price-vnd">
-                {formatVND(totalPriceVnd)}
+                {hasMissingPrice ? 'Chưa có giá' : formatVND(totalPriceVnd)}
               </span>
             </div>
+            {hasMissingPrice && (
+              <p className="text-[11px] text-rose-600 font-semibold mt-0.5">
+                Khung giờ chưa được cấu hình bảng giá. Vui lòng bỏ chọn ô thiếu giá.
+              </p>
+            )}
           </div>
 
           <button
             type="button"
             onClick={handleProceed}
-            className="w-full sm:w-auto px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-xl shadow-md shadow-brand-500/25 transition active:scale-[0.98] flex items-center justify-center space-x-2"
+            disabled={hasMissingPrice}
+            className="w-full sm:w-auto px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-xl shadow-md shadow-brand-500/25 transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
             data-testid="btn-proceed-checkout"
           >
             <span>Tiến hành đặt sân</span>
@@ -282,7 +288,7 @@ export function SelectedRangesSummary({
                 {court?.name || court?.courtName}
               </div>
               <div className="text-base font-black text-brand-600">
-                {formatVND(totalPriceVnd)}{' '}
+                {hasMissingPrice ? 'Chưa có giá' : formatVND(totalPriceVnd)}{' '}
                 <span className="text-[10px] font-normal text-slate-400">
                   ({totalDurationMinutes}p)
                 </span>
@@ -298,7 +304,8 @@ export function SelectedRangesSummary({
           <button
             type="button"
             onClick={handleProceed}
-            className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-md transition shrink-0 flex items-center space-x-1.5"
+            disabled={hasMissingPrice}
+            className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-md transition shrink-0 flex items-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span>Đặt sân</span>
             <ArrowRight className="w-3.5 h-3.5" />

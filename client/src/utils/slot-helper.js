@@ -110,8 +110,13 @@ export function mergeContiguousSlots(slots = []) {
  * @returns {{ ranges: Array<any>, totalDurationMinutes: number, totalPriceVnd: number }}
  */
 export function calculateEstimatedPrice(mergedRanges = [], pricingInput = 0, dayType = 'WEEKDAY') {
+  if (!Array.isArray(mergedRanges) || mergedRanges.length === 0) {
+    return { ranges: [], totalDurationMinutes: 0, totalPriceVnd: 0, hasMissingPrice: false };
+  }
+
   let totalDurationMinutes = 0;
   let totalPriceVnd = 0;
+  let hasMissingPrice = false;
 
   let pricingRules = [];
   let fallbackPrice = 0;
@@ -132,6 +137,7 @@ export function calculateEstimatedPrice(mergedRanges = [], pricingInput = 0, day
 
     let rangePrice = 0;
     let segments = [];
+    let isPriced = true;
 
     if (pricingRules.length > 0) {
       const matchingRules = pricingRules
@@ -144,55 +150,65 @@ export function calculateEstimatedPrice(mergedRanges = [], pricingInput = 0, day
         }))
         .sort((a, b) => a.startMinutes - b.startMinutes);
 
-      let cur = startMin;
-      for (const rule of matchingRules) {
-        if (rule.endMinutes <= cur) continue;
-        if (rule.startMinutes > cur) {
-          // Gap: use fallback if available
-          const gapDur = Math.min(rule.startMinutes, endMin) - cur;
-          if (gapDur > 0 && fallbackPrice > 0) {
-            rangePrice += Math.round((gapDur / 60) * fallbackPrice);
+      if (matchingRules.length === 0) {
+        // No pricing rules for this dayType (INT-06 fix: strict matching)
+        isPriced = false;
+        hasMissingPrice = true;
+      } else {
+        let cur = startMin;
+        for (const rule of matchingRules) {
+          if (rule.endMinutes <= cur) continue;
+          if (rule.startMinutes > cur) {
+            // Gap detected: interval has no pricing rule
+            isPriced = false;
+            hasMissingPrice = true;
+            break;
           }
-          cur = Math.min(rule.startMinutes, endMin);
+
+          const sStart = cur;
+          const sEnd = Math.min(rule.endMinutes, endMin);
+          const sDur = sEnd - sStart;
+
+          if (sDur > 0) {
+            const segAmount = Math.round((sDur / 60) * rule.pricePerHourVnd);
+            segments.push({
+              startTime: minutesToTime(sStart),
+              endTime: minutesToTime(sEnd),
+              startMinutes: sStart,
+              endMinutes: sEnd,
+              durationMinutes: sDur,
+              pricePerHourVnd: rule.pricePerHourVnd,
+              segmentAmountVnd: segAmount,
+            });
+            rangePrice += segAmount;
+            cur = sEnd;
+          }
+
+          if (cur >= endMin) break;
         }
 
-        const sStart = cur;
-        const sEnd = Math.min(rule.endMinutes, endMin);
-        const sDur = sEnd - sStart;
-
-        if (sDur > 0) {
-          const segAmount = Math.round((sDur / 60) * rule.pricePerHourVnd);
-          segments.push({
-            startTime: minutesToTime(sStart),
-            endTime: minutesToTime(sEnd),
-            startMinutes: sStart,
-            endMinutes: sEnd,
-            durationMinutes: sDur,
-            pricePerHourVnd: rule.pricePerHourVnd,
-            segmentAmountVnd: segAmount,
-          });
-          rangePrice += segAmount;
-          cur = sEnd;
+        if (cur < endMin) {
+          isPriced = false;
+          hasMissingPrice = true;
         }
-
-        if (cur >= endMin) break;
-      }
-
-      if (cur < endMin && fallbackPrice > 0) {
-        const remDur = endMin - cur;
-        rangePrice += Math.round((remDur / 60) * fallbackPrice);
       }
     } else {
-      rangePrice = Math.round((duration / 60) * fallbackPrice);
+      if (fallbackPrice > 0) {
+        rangePrice = Math.round((duration / 60) * fallbackPrice);
+      } else {
+        isPriced = false;
+        hasMissingPrice = true;
+      }
     }
 
     totalDurationMinutes += duration;
-    totalPriceVnd += rangePrice;
+    totalPriceVnd += isPriced ? rangePrice : 0;
 
     return {
       ...range,
-      priceVnd: rangePrice,
-      pricingSnapshot: segments,
+      priceVnd: isPriced ? rangePrice : 0,
+      isPriced,
+      pricingSnapshot: isPriced ? segments : [],
     };
   });
 
@@ -200,6 +216,7 @@ export function calculateEstimatedPrice(mergedRanges = [], pricingInput = 0, day
     ranges,
     totalDurationMinutes,
     totalPriceVnd,
+    hasMissingPrice,
   };
 }
 

@@ -41,7 +41,7 @@ export function OwnerCourtBlocksPage() {
         const facs = res.data?.facilities || res.data || [];
         setFacilities(facs);
         if (facs.length > 0) {
-          setSelectedFacilityId(facs[0]._id);
+          setSelectedFacilityId(facs[0].id || facs[0]._id);
         }
       } catch (err) {
         setError(err.message || 'Không thể tải danh sách cơ sở thể thao.');
@@ -65,7 +65,7 @@ export function OwnerCourtBlocksPage() {
         const courtList = res.data?.courts || res.data || [];
         setCourts(courtList);
         if (courtList.length > 0) {
-          setSelectedCourtId(courtList[0]._id);
+          setSelectedCourtId(courtList[0].id || courtList[0]._id);
         } else {
           setSelectedCourtId('');
         }
@@ -200,7 +200,7 @@ export function OwnerCourtBlocksPage() {
     }
   };
 
-  const currentCourt = courts.find((c) => c._id === selectedCourtId);
+  const currentCourt = courts.find((c) => (c.id || c._id) === selectedCourtId);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -283,7 +283,7 @@ export function OwnerCourtBlocksPage() {
                 <option value="">Không có cơ sở nào</option>
               ) : (
                 facilities.map((fac) => (
-                  <option key={fac._id} value={fac._id}>
+                  <option key={fac.id || fac._id} value={fac.id || fac._id}>
                     {fac.name}
                   </option>
                 ))
@@ -306,7 +306,7 @@ export function OwnerCourtBlocksPage() {
                 <option value="">(Cơ sở chưa có sân)</option>
               ) : (
                 courts.map((court) => (
-                  <option key={court._id} value={court._id}>
+                  <option key={court.id || court._id} value={court.id || court._id}>
                     {court.name}
                   </option>
                 ))
@@ -520,7 +520,7 @@ export function OwnerCourtBlocksPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {blocks.map((block) => (
-                    <tr key={block._id} className="hover:bg-gray-50 transition">
+                    <tr key={block.id || block._id} className="hover:bg-gray-50 transition">
                       <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
                         {block.bookingDate}
                       </td>
@@ -544,7 +544,7 @@ export function OwnerCourtBlocksPage() {
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         {block.isActive ? (
                           <button
-                            onClick={() => handleDeleteCourtBlock(block._id)}
+                            onClick={() => handleDeleteCourtBlock(block.id || block._id)}
                             className="text-xs text-blue-600 hover:text-blue-900 font-medium px-2 py-1 rounded border border-blue-200 hover:bg-blue-50 transition"
                           >
                             Mở lại sân

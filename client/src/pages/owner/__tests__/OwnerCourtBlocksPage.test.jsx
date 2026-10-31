@@ -24,11 +24,11 @@ vi.mock('../../../services/court.service.js', () => ({
 
 describe('OwnerCourtBlocksPage Component (P18)', () => {
   const mockFacilities = [
-    { _id: 'f-1', name: 'CLB Sao Vàng' },
+    { id: 'f-1', _id: 'f-1', name: 'CLB Sao Vàng' },
   ];
 
   const mockCourts = [
-    { _id: 'c-1', name: 'Sân 1', facilityId: 'f-1' },
+    { id: 'c-1', _id: 'c-1', name: 'Sân 1', facilityId: 'f-1' },
   ];
 
   const mockSchedule = {
@@ -45,6 +45,7 @@ describe('OwnerCourtBlocksPage Component (P18)', () => {
 
   const mockBlocks = [
     {
+      id: 'cb-1',
       _id: 'cb-1',
       courtId: 'c-1',
       bookingDate: '2026-11-01',
