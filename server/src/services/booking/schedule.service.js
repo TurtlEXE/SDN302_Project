@@ -45,7 +45,26 @@ export class ScheduleService {
 
     // 3. Fetch facility and ensure public availability & active owner (PUB-04, Criterion 19, Issue 1)
     const facility = await facilityRepository.findById(court.facilityId);
-    if (!facility || facility.status !== 'PUBLISHED' || facility.isLockedByAdmin) {
+    if (!facility) {
+      throw AppError.notFound(
+        'Không tìm thấy cơ sở thể thao.',
+        ERROR_CODES.FACILITY_NOT_FOUND
+      );
+    }
+
+    // Resolve owner role: verified ownership from authenticated requestingUser, or explicit forRole in unit tests (INT-01 fix)
+    let isOwner = false;
+    if (options?.requestingUser) {
+      const actorUserId = options.requestingUser._id ? options.requestingUser._id.toString() : options.requestingUser.id?.toString();
+      const ownerId = facility.ownerId?._id ? facility.ownerId._id.toString() : facility.ownerId?.toString();
+      isOwner =
+        options.requestingUser.role === 'OWNER' &&
+        ownerId === actorUserId;
+    } else if (options?.forRole || timeOverrides?.role) {
+      isOwner = (options?.forRole || timeOverrides?.role) === 'OWNER';
+    }
+
+    if (!isOwner && (facility.status !== 'PUBLISHED' || facility.isLockedByAdmin)) {
       throw AppError.notFound(
         'Không tìm thấy cơ sở thể thao công khai.',
         ERROR_CODES.FACILITY_NOT_FOUND
@@ -60,15 +79,6 @@ export class ScheduleService {
       );
     }
 
-    // Resolve owner role: verified ownership from authenticated requestingUser, or explicit forRole in unit tests (INT-01 fix)
-    let isOwner = false;
-    if (options?.requestingUser) {
-      isOwner =
-        options.requestingUser.role === 'OWNER' &&
-        facility.ownerId.toString() === options.requestingUser._id.toString();
-    } else if (options?.forRole || timeOverrides?.role) {
-      isOwner = (options?.forRole || timeOverrides?.role) === 'OWNER';
-    }
     const minAdvanceMinutes = isOwner ? 0 : 15;
 
     // 4. Fetch facilitySport configuration
@@ -234,7 +244,26 @@ export class ScheduleService {
 
     // 2. Fetch facility and ensure public availability & active owner
     const facility = await facilityRepository.findById(facilityId);
-    if (!facility || facility.status !== 'PUBLISHED' || facility.isLockedByAdmin) {
+    if (!facility) {
+      throw AppError.notFound(
+        'Không tìm thấy cơ sở thể thao.',
+        ERROR_CODES.FACILITY_NOT_FOUND
+      );
+    }
+
+    // Resolve owner role: verified ownership from authenticated requestingUser, or explicit forRole in unit tests (INT-01 fix)
+    let isOwner = false;
+    if (options?.requestingUser) {
+      const actorUserId = options.requestingUser._id ? options.requestingUser._id.toString() : options.requestingUser.id?.toString();
+      const ownerId = facility.ownerId?._id ? facility.ownerId._id.toString() : facility.ownerId?.toString();
+      isOwner =
+        options.requestingUser.role === 'OWNER' &&
+        ownerId === actorUserId;
+    } else if (options?.forRole || timeOverrides?.role) {
+      isOwner = (options?.forRole || timeOverrides?.role) === 'OWNER';
+    }
+
+    if (!isOwner && (facility.status !== 'PUBLISHED' || facility.isLockedByAdmin)) {
       throw AppError.notFound(
         'Không tìm thấy cơ sở thể thao công khai.',
         ERROR_CODES.FACILITY_NOT_FOUND
@@ -247,16 +276,6 @@ export class ScheduleService {
         'Không tìm thấy cơ sở thể thao công khai.',
         ERROR_CODES.FACILITY_NOT_FOUND
       );
-    }
-
-    // Resolve owner role: verified ownership from authenticated requestingUser, or explicit forRole in unit tests (INT-01 fix)
-    let isOwner = false;
-    if (options?.requestingUser) {
-      isOwner =
-        options.requestingUser.role === 'OWNER' &&
-        facility.ownerId.toString() === options.requestingUser._id.toString();
-    } else if (options?.forRole || timeOverrides?.role) {
-      isOwner = (options?.forRole || timeOverrides?.role) === 'OWNER';
     }
     const minAdvanceMinutes = isOwner ? 0 : 15;
 
@@ -407,12 +426,68 @@ export class ScheduleService {
             status = 'NO_PRICE';
           }
 
-          return {
+          let bookingInfo = null;
+          let blockInfo = null;
+
+          if (isOwner) {
+            if (isBooked || isHold) {
+              const matchedBooking = courtBookings.find(
+                (b) => slot.startMinutes < b.endMinutes && slot.endMinutes > b.startMinutes
+              );
+              if (matchedBooking) {
+                const bookerName =
+                  matchedBooking.bookingRequestId?.contactName ||
+                  matchedBooking.customerId?.fullName ||
+                  'Khách đặt sân';
+                const bookerPhone =
+                  matchedBooking.bookingRequestId?.contactPhone ||
+                  matchedBooking.customerId?.phoneNumber ||
+                  '';
+                const bookerEmail =
+                  matchedBooking.customerId?.email ||
+                  '';
+                bookingInfo = {
+                  id: matchedBooking._id ? matchedBooking._id.toString() : matchedBooking.id,
+                  bookingCode: matchedBooking.bookingCode,
+                  status: matchedBooking.status,
+                  paymentStatus: matchedBooking.paymentStatus,
+                  source: matchedBooking.bookingRequestId?.source || 'CUSTOMER_ONLINE',
+                  customerName: bookerName,
+                  customerPhone: bookerPhone,
+                  customerEmail: bookerEmail,
+                  startTime: matchedBooking.startTime,
+                  endTime: matchedBooking.endTime,
+                  totalPriceVnd: matchedBooking.totalPriceVnd,
+                };
+              }
+            } else if (isBlocked) {
+              const matchedBlock = courtBlocks.find(
+                (b) => slot.startMinutes < b.endMinutes && slot.endMinutes > b.startMinutes
+              );
+              if (matchedBlock) {
+                blockInfo = {
+                  id: matchedBlock._id ? matchedBlock._id.toString() : matchedBlock.id,
+                  reason: matchedBlock.reason || 'Bảo trì sân',
+                  startTime: matchedBlock.startTime,
+                  endTime: matchedBlock.endTime,
+                };
+              }
+            }
+          }
+
+          const slotObj = {
             startTime: slot.startTime,
             endTime: slot.endTime,
             status,
             priceVnd: slotPriceVnd,
           };
+
+          if (isOwner) {
+            if (bookingInfo) slotObj.booking = bookingInfo;
+            if (blockInfo) slotObj.block = blockInfo;
+          }
+
+          return slotObj;
         });
 
         return {
