@@ -29,6 +29,7 @@ import { AdminSportsPage } from './pages/admin/AdminSportsPage.jsx';
 import { AdminRefundsPage } from './pages/admin/AdminRefundsPage.jsx';
 import { AdminEmailOutboxPage } from './pages/admin/AdminEmailOutboxPage.jsx';
 import { OwnerDashboardPage } from './pages/owner/OwnerDashboardPage.jsx';
+import { OwnerSchedulePage } from './pages/owner/OwnerSchedulePage.jsx';
 import { OwnerFacilitiesPage } from './pages/owner/OwnerFacilitiesPage.jsx';
 import { OwnerCourtBlocksPage } from './pages/owner/OwnerCourtBlocksPage.jsx';
 import { OwnerBookingsPage } from './pages/owner/OwnerBookingsPage.jsx';
@@ -109,6 +110,7 @@ export default function App() {
         }
       >
         <Route path="dashboard" element={<OwnerDashboardPage />} />
+        <Route path="schedule" element={<OwnerSchedulePage />} />
         <Route path="facilities" element={<OwnerFacilitiesPage />} />
         <Route path="court-blocks" element={<OwnerCourtBlocksPage />} />
         <Route path="bookings" element={<OwnerBookingsPage />} />

@@ -8,6 +8,7 @@ import {
   Building2,
   CalendarCheck,
   CalendarX,
+  CalendarDays,
   UserPlus,
   Receipt,
   Mail,
@@ -41,6 +42,7 @@ export function DashboardLayout() {
 
   const ownerNav = [
     { name: 'Tổng quan doanh thu', path: '/owner/dashboard', icon: LayoutDashboard },
+    { name: 'Lịch sân trực quan', path: '/owner/schedule', icon: CalendarDays },
     { name: 'Cơ sở & Slot bước giờ', path: '/owner/facilities', icon: Building2 },
     { name: 'Khóa lịch bảo trì', path: '/owner/court-blocks', icon: CalendarX },
     { name: 'Quản lý đơn đặt sân', path: '/owner/bookings', icon: CalendarCheck },
