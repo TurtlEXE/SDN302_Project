@@ -10,8 +10,9 @@ import { env } from '../config/env.js';
  * @param {string} [options.message]
  */
 export function createRateLimiter(options = {}) {
-  const windowMs = options.windowMs || env.RATE_LIMIT_WINDOW_MS;
-  const max = options.max || env.RATE_LIMIT_MAX_REQUESTS;
+  const isDev = (env.NODE_ENV === 'development' || process.env.NODE_ENV === 'development');
+  const windowMs = options.windowMs || (isDev ? 60000 : env.RATE_LIMIT_WINDOW_MS);
+  const max = options.max || (isDev ? 100000 : env.RATE_LIMIT_MAX_REQUESTS);
   const message = options.message || 'Bạn đã gửi quá nhiều yêu cầu trong khoảng thời gian ngắn. Vui lòng thử lại sau.';
 
   return rateLimit({
@@ -38,7 +39,7 @@ export const generalRateLimiter = createRateLimiter();
 const emailCooldownMap = new Map();
 
 /**
- * Middleware enforcing 60-second cooldown per email address
+ * Middleware enforcing cooldown per email address (2s in dev for seamless demo, 60s in production)
  */
 export function emailCooldownMiddleware(req, res, next) {
   const email = req.body?.email ? String(req.body.email).toLowerCase().trim() : null;
@@ -48,7 +49,8 @@ export function emailCooldownMiddleware(req, res, next) {
 
   const now = Date.now();
   const lastRequested = emailCooldownMap.get(email);
-  const cooldownMs = 60 * 1000;
+  const isDev = (env.NODE_ENV === 'development' || process.env.NODE_ENV === 'development');
+  const cooldownMs = isDev ? 2000 : 60 * 1000;
 
   if (lastRequested && now - lastRequested < cooldownMs) {
     const remainingSeconds = Math.ceil((cooldownMs - (now - lastRequested)) / 1000);
@@ -56,7 +58,7 @@ export function emailCooldownMiddleware(req, res, next) {
       success: false,
       error: {
         code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-        message: `Mỗi lần yêu cầu gửi lại email phải cách nhau ít nhất 60 giây. Vui lòng thử lại sau ${remainingSeconds} giây.`,
+        message: `Mỗi lần yêu cầu gửi lại email phải cách nhau ít nhất ${isDev ? 2 : 60} giây. Vui lòng thử lại sau ${remainingSeconds} giây.`,
         details: [{ field: 'email', remainingSeconds }],
       },
     });

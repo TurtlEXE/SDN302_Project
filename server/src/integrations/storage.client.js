@@ -2,19 +2,30 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { env } from '../config/env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const UPLOADS_BASE_DIR = path.resolve(__dirname, '../../uploads');
-const FACILITIES_UPLOAD_DIR = path.join(UPLOADS_BASE_DIR, 'facilities');
+
+function resolveDefaultFacilitiesDir() {
+  const configured = env.STORAGE_LOCAL_PATH || './uploads';
+  if (path.isAbsolute(configured)) {
+    return configured;
+  }
+  return path.resolve(__dirname, '../../', configured, 'facilities');
+}
 
 /**
  * Storage Client for Local Image Persistence
  */
 export class StorageClient {
-  constructor(facilitiesDir = FACILITIES_UPLOAD_DIR) {
-    this.facilitiesDir = facilitiesDir;
+  constructor(facilitiesDir = null) {
+    this._facilitiesDir = facilitiesDir;
     this.ensureDirectoryExists();
+  }
+
+  get facilitiesDir() {
+    return this._facilitiesDir || resolveDefaultFacilitiesDir();
   }
 
   ensureDirectoryExists() {

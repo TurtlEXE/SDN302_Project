@@ -32,11 +32,15 @@ const upload = multer({
 
 /**
  * Express middleware for single facility image upload
+ * Accepts both 'file' and 'image' multipart field names
  */
 export function uploadSingleFacilityImage(req, res, next) {
-  const singleUpload = upload.single('file');
+  const uploadHandler = upload.fields([
+    { name: 'file', maxCount: 1 },
+    { name: 'image', maxCount: 1 },
+  ]);
 
-  singleUpload(req, res, (err) => {
+  uploadHandler(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
@@ -58,6 +62,9 @@ export function uploadSingleFacilityImage(req, res, next) {
       }
       return next(err);
     }
+
+    // Resolve file from either 'file' or 'image' field
+    req.file = req.files?.file?.[0] || req.files?.image?.[0] || req.file;
 
     if (!req.file) {
       return next(

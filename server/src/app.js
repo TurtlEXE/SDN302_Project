@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { corsOptions } from './config/cors.js';
 import { generalRateLimiter } from './middlewares/rate-limit.js';
@@ -28,7 +29,17 @@ app.use(cors(corsOptions));
 app.use(cookieParser());
 
 // Static uploads serving
-app.use('/uploads', express.static(uploadsDir));
+const configuredStoragePath = env.STORAGE_LOCAL_PATH || './uploads';
+if (path.isAbsolute(configuredStoragePath) && fs.existsSync(configuredStoragePath)) {
+  app.use('/uploads/facilities', express.static(configuredStoragePath));
+  app.use('/uploads', express.static(configuredStoragePath));
+}
+
+const defaultUploadsDir = path.resolve(__dirname, '../uploads');
+if (fs.existsSync(defaultUploadsDir)) {
+  app.use('/uploads/facilities', express.static(path.join(defaultUploadsDir, 'facilities')));
+  app.use('/uploads', express.static(defaultUploadsDir));
+}
 
 // Body Parsing
 app.use(express.json({ limit: '10mb' }));
