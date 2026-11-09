@@ -34,6 +34,7 @@ export const ownerService = {
 
   async uploadFacilityImage(id, file) {
     const formData = new FormData();
+    formData.append('file', file);
     formData.append('image', file);
     return apiClient.post(`/owner/facilities/${id}/images`, formData, { isFormData: true });
   },

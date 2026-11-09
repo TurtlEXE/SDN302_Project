@@ -162,8 +162,13 @@ export function OwnerFacilitiesPage() {
   useEffect(() => {
     fetchFacilities();
     sportService.getPublicSports().then((res) => {
-      if (res?.data) setAvailableSports(res.data);
-    });
+      const sportsList = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
+      setAvailableSports(sportsList);
+    }).catch(() => {});
   }, [fetchFacilities]);
 
   // Load detailed sub-resources when a facility is selected
@@ -302,7 +307,7 @@ export function OwnerFacilitiesPage() {
         fetchFacilities();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Tải ảnh thất bại.');
+      alert(err.message || err.response?.data?.message || 'Tải ảnh thất bại.');
     }
   };
 

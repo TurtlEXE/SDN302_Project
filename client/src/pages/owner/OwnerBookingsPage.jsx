@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { CalendarDays } from 'lucide-react';
 import { ownerService } from '../../services/owner.service.js';
 
 export function OwnerBookingsPage() {
@@ -39,7 +41,7 @@ export function OwnerBookingsPage() {
         const facs = res.data?.facilities || res.data || [];
         setFacilities(facs);
         if (facs.length > 0) {
-          setSelectedFacilityId(facs[0]._id);
+          setSelectedFacilityId(facs[0].id || facs[0]._id);
         }
       } catch (err) {
         setError(err.message || 'Không thể tải danh sách cơ sở thể thao.');
@@ -216,13 +218,24 @@ export function OwnerBookingsPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Title */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Quản lý đơn đặt sân & Vận hành
-        </h1>
-        <p className="text-sm text-gray-600 mt-1">
-          Theo dõi thông tin khách hàng, kiểm tra lịch chơi và thực hiện các tác vụ hoàn tất phục vụ hoặc ghi nhận vắng mặt (OWN-07, OWN-09).
-        </p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Quản lý đơn đặt sân & Vận hành
+          </h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Theo dõi thông tin khách hàng, kiểm tra lịch chơi và thực hiện các tác vụ hoàn tất phục vụ hoặc ghi nhận vắng mặt (OWN-07, OWN-09).
+          </p>
+        </div>
+        <div>
+          <Link
+            to="/owner/schedule"
+            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-sm transition active:scale-95"
+          >
+            <CalendarDays className="w-4 h-4" />
+            <span>Xem Lịch Sân Trực Quan (Matrix Grid)</span>
+          </Link>
+        </div>
       </div>
 
       {/* Strict Policy Notice */}
@@ -293,7 +306,7 @@ export function OwnerBookingsPage() {
                 <option value="">Không có cơ sở nào</option>
               ) : (
                 facilities.map((fac) => (
-                  <option key={fac._id} value={fac._id}>
+                  <option key={fac.id || fac._id} value={fac.id || fac._id}>
                     {fac.name}
                   </option>
                 ))
@@ -313,7 +326,7 @@ export function OwnerBookingsPage() {
             >
               <option value="">Tất cả các sân</option>
               {courts.map((court) => (
-                <option key={court._id} value={court._id}>
+                <option key={court.id || court._id} value={court.id || court._id}>
                   {court.name}
                 </option>
               ))}
