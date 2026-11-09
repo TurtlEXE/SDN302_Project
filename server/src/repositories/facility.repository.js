@@ -354,6 +354,12 @@ export class FacilityRepository {
           ? facility.minPricePerHour
           : null,
       coverImageUrl: coverImage,
+      images: (facility.images || []).map((img) => ({
+        id: img.id,
+        url: img.url,
+        isCover: img.isCover,
+        order: img.order,
+      })),
       status: facility.status,
       isLockedByAdmin: facility.isLockedByAdmin || false,
       lockReason: facility.lockReason || null,

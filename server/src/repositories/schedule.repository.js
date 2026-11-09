@@ -64,7 +64,9 @@ export class ScheduleRepository {
       bookingDate,
       status: { $in: ['PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED', 'NO_SHOW'] },
     })
-      .select('courtId bookingDate startTime endTime startMinutes endMinutes durationMinutes status holdExpiresAt')
+      .select('courtId bookingCode bookingDate startTime endTime startMinutes endMinutes durationMinutes status holdExpiresAt customerId bookingRequestId totalPriceVnd paymentStatus')
+      .populate('customerId', 'fullName phoneNumber email')
+      .populate('bookingRequestId', 'contactName contactPhone source')
       .session(session)
       .lean();
   }

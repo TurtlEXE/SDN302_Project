@@ -5,6 +5,19 @@ import { getCurrentDateVN, getCurrentTimeVN } from '../utils/date-time.js';
 
 export class CourtRepository {
   /**
+   * Finds courts matching a query filter
+   * @param {Object} [filter={}]
+   * @param {import('mongoose').ClientSession} [session=null]
+   */
+  async find(filter = {}, session = null) {
+    return Court.find(filter)
+      .populate('facilityId', 'name ownerId openTime closeTime status isLockedByAdmin')
+      .populate('sportId', 'name isActive')
+      .sort({ name: 1 })
+      .session(session);
+  }
+
+  /**
    * Finds a Court document by its ID
    * @param {string} id
    * @param {import('mongoose').ClientSession} [session=null]
