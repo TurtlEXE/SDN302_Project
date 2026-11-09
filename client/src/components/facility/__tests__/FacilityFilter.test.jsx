@@ -79,5 +79,17 @@ describe('FacilityFilter Component (P16)', () => {
     expect(onReset).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('input-keyword')).toHaveValue('');
   });
+
+  it('handles sportService returning a plain array gracefully', async () => {
+    sportService.getPublicSports.mockResolvedValueOnce([
+      { _id: 'sp-10', name: 'Pickleball' },
+    ]);
+
+    render(<FacilityFilter initialFilters={{}} onFilterChange={vi.fn()} onReset={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Pickleball')).toBeInTheDocument();
+    });
+  });
 });
 

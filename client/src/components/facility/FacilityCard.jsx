@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin, Clock, ArrowRight, Dumbbell } from 'lucide-react';
 import { formatVND } from '../../utils/slot-helper.js';
@@ -15,34 +15,36 @@ export function FacilityCard({ facility }) {
   } = facility;
   const minPrice = facility.minPricePerHour || facility.minPrice;
 
-  const coverImage = images.find((img) => img.isCover)?.url || images[0]?.url || null;
+  const [imgError, setImgError] = useState(false);
+
+  const coverImage =
+    facility.coverImageUrl ||
+    facility.coverImage ||
+    (Array.isArray(images) && images.length > 0
+      ? images.find((img) => img?.isCover)?.url ||
+        images[0]?.url ||
+        (typeof images[0] === 'string' ? images[0] : null)
+      : null) ||
+    null;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col group">
       {/* Cover Image / Thumbnail */}
       <div className="relative h-48 bg-slate-100 overflow-hidden flex items-center justify-center">
-        {coverImage ? (
+        {coverImage && !imgError ? (
           <img
             src={coverImage}
             alt={name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            onError={(e) => {
-              // Fallback to placeholder on error
-              e.target.style.display = 'none';
-              e.target.nextSibling.style.display = 'flex';
-            }}
+            onError={() => setImgError(true)}
+            loading="lazy"
           />
-        ) : null}
-
-        {/* Fallback Icon placeholder */}
-        <div
-          className={`w-full h-full flex flex-col items-center justify-center text-slate-300 bg-slate-100 ${
-            coverImage ? 'hidden' : 'flex'
-          }`}
-        >
-          <Dumbbell className="w-12 h-12 stroke-[1.5]" />
-          <span className="text-xs font-medium mt-1 text-slate-400">SportBooking</span>
-        </div>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 bg-slate-100">
+            <Dumbbell className="w-12 h-12 stroke-[1.5]" />
+            <span className="text-xs font-medium mt-1 text-slate-400">SportBooking</span>
+          </div>
+        )}
 
         {/* Province Badge */}
         <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-semibold tracking-wide">

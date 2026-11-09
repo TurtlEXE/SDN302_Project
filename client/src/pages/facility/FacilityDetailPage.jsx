@@ -322,7 +322,11 @@ export function FacilityDetailPage() {
     );
   }
 
-  const coverImage = facility.images?.find((img) => img.isCover)?.url || facility.images?.[0]?.url || 'https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=1200&auto=format&fit=crop';
+  const coverImage =
+    facility.coverImageUrl ||
+    facility.images?.find((img) => img.isCover)?.url ||
+    facility.images?.[0]?.url ||
+    'https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=1200&auto=format&fit=crop';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-6 pb-28">

@@ -40,5 +40,49 @@ describe('FacilityCard Component (P16)', () => {
     const link = screen.getByRole('link', { name: /xem lịch & đặt sân/i });
     expect(link).toHaveAttribute('href', '/facilities/fac-1');
   });
+
+  it('renders cover image from coverImageUrl when images array is not provided', () => {
+    const facilityWithCoverUrl = {
+      id: 'fac-2',
+      name: 'Trung Tâm Thể Thao Đa Năng',
+      address: '456 Lê Lợi, Đà Nẵng',
+      province: 'Đà Nẵng',
+      openTime: '07:00',
+      closeTime: '21:00',
+      minPricePerHour: 150000,
+      coverImageUrl: 'https://images.unsplash.com/photo-court-1',
+    };
+
+    render(
+      <BrowserRouter>
+        <FacilityCard facility={facilityWithCoverUrl} />
+      </BrowserRouter>
+    );
+
+    const img = screen.getByRole('img', { name: 'Trung Tâm Thể Thao Đa Năng' });
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute('src', 'https://images.unsplash.com/photo-court-1');
+  });
+
+  it('renders fallback placeholder icon when no image or coverImageUrl exists', () => {
+    const facilityWithoutImage = {
+      id: 'fac-3',
+      name: 'Sân Tập Không Ảnh',
+      address: '789 Trần Hưng Đạo',
+      province: 'Hồ Chí Minh',
+      openTime: '06:00',
+      closeTime: '22:00',
+      minPricePerHour: 100000,
+    };
+
+    render(
+      <BrowserRouter>
+        <FacilityCard facility={facilityWithoutImage} />
+      </BrowserRouter>
+    );
+
+    expect(screen.getByText('SportBooking')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
 });
 

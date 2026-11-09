@@ -56,8 +56,13 @@ export function FacilityFilter({ initialFilters = {}, onFilterChange, onReset })
       try {
         setLoadingSports(true);
         const res = await sportService.getPublicSports();
-        if (isMounted && res?.data) {
-          setSports(res.data);
+        const sportsList = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.data)
+          ? res.data
+          : [];
+        if (isMounted) {
+          setSports(sportsList);
         }
       } catch (err) {
         // Silently tolerate sport list load error
