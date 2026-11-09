@@ -26,6 +26,7 @@ logs/
 dist/
 build/
 coverage/
+report_docs/
 
 # OS Files
 .DS_Store

@@ -85,6 +85,66 @@ export async function seedDemo(uri = env.MONGODB_URI) {
     });
   }
 
+  let ownerCaugiay = await User.findOne({ email: 'owner.caugiay@sportbooking.local' });
+  if (!ownerCaugiay) {
+    ownerCaugiay = await User.create({
+      email: 'owner.caugiay@sportbooking.local',
+      passwordHash,
+      fullName: 'Chủ Sân Cầu Giấy (Phạm Hoàng Nam)',
+      phoneNumber: '0902000003',
+      role: 'OWNER',
+      isLocked: false,
+      tokenVersion: 0,
+      emailVerifiedAt: now,
+      activatedAt: now,
+    });
+  }
+
+  let ownerHaibatrung = await User.findOne({ email: 'owner.haibatrung@sportbooking.local' });
+  if (!ownerHaibatrung) {
+    ownerHaibatrung = await User.create({
+      email: 'owner.haibatrung@sportbooking.local',
+      passwordHash,
+      fullName: 'Chủ Sân Hai Bà Trưng (Vũ Minh Đức)',
+      phoneNumber: '0902000004',
+      role: 'OWNER',
+      isLocked: false,
+      tokenVersion: 0,
+      emailVerifiedAt: now,
+      activatedAt: now,
+    });
+  }
+
+  let ownerSaigon = await User.findOne({ email: 'owner.saigon@sportbooking.local' });
+  if (!ownerSaigon) {
+    ownerSaigon = await User.create({
+      email: 'owner.saigon@sportbooking.local',
+      passwordHash,
+      fullName: 'Chủ Sân Tân Bình Sài Gòn (Lê Quốc Bảo)',
+      phoneNumber: '0902000005',
+      role: 'OWNER',
+      isLocked: false,
+      tokenVersion: 0,
+      emailVerifiedAt: now,
+      activatedAt: now,
+    });
+  }
+
+  let ownerThuduc = await User.findOne({ email: 'owner.thuduc@sportbooking.local' });
+  if (!ownerThuduc) {
+    ownerThuduc = await User.create({
+      email: 'owner.thuduc@sportbooking.local',
+      passwordHash,
+      fullName: 'Chủ Sân Thủ Đức (Đặng Thùy Dung)',
+      phoneNumber: '0902000006',
+      role: 'OWNER',
+      isLocked: false,
+      tokenVersion: 0,
+      emailVerifiedAt: now,
+      activatedAt: now,
+    });
+  }
+
   // Customers
   let customerAn = await User.findOne({ email: 'customer.an@sportbooking.local' });
   if (!customerAn) {
@@ -137,27 +197,73 @@ export async function seedDemo(uri = env.MONGODB_URI) {
   }
 
   // 3. Facilities
-  // Hanoi Facility
+  const createWeeklySchedule = (openTime, closeTime) => ({
+    monday: { isOpen: true, openTime, closeTime },
+    tuesday: { isOpen: true, openTime, closeTime },
+    wednesday: { isOpen: true, openTime, closeTime },
+    thursday: { isOpen: true, openTime, closeTime },
+    friday: { isOpen: true, openTime, closeTime },
+    saturday: { isOpen: true, openTime, closeTime },
+    sunday: { isOpen: true, openTime, closeTime },
+  });
+
+  // Hanoi Facility - Ba Đình
   let facilityHanoi = await Facility.findOne({ name: 'Sân Cầu Lông Ba Đình' });
   if (!facilityHanoi) {
     facilityHanoi = await Facility.create({
       name: 'Sân Cầu Lông Ba Đình',
-      description: 'Cơ sở cầu lông hiện đại với thảm thi đấu tiêu chuẩn BWF',
+      description: 'Cơ sở cầu lông hiện đại với thảm thi đấu tiêu chuẩn BWF, hệ thống quạt công nghiệp và đèn chống lóa.',
       address: 'Số 15 Phố Liễu Giai, Phường Cống Vị, Ba Đình, Hà Nội',
       province: 'Hà Nội',
       phoneNumber: '0902000001',
       openTime: '06:00',
       closeTime: '22:00',
+      weeklySchedule: createWeeklySchedule('06:00', '22:00'),
       ownerId: ownerHanoi._id,
       status: 'PUBLISHED',
       images: [
         {
           id: 'hn-img-1',
-          url: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea',
+          url: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=1200&auto=format&fit=crop',
           isCover: true,
+          order: 0,
+        },
+        {
+          id: 'hn-img-2',
+          url: 'https://images.unsplash.com/photo-1613918108466-292b78a8ef95?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 1,
+        },
+        {
+          id: 'hn-img-3',
+          url: 'https://images.unsplash.com/photo-1521537634581-0dced2fedc42?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 2,
         },
       ],
     });
+  } else if (!facilityHanoi.images || facilityHanoi.images.length < 3) {
+    facilityHanoi.images = [
+      {
+        id: 'hn-img-1',
+        url: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=1200&auto=format&fit=crop',
+        isCover: true,
+        order: 0,
+      },
+      {
+        id: 'hn-img-2',
+        url: 'https://images.unsplash.com/photo-1613918108466-292b78a8ef95?q=80&w=1200&auto=format&fit=crop',
+        isCover: false,
+        order: 1,
+      },
+      {
+        id: 'hn-img-3',
+        url: 'https://images.unsplash.com/photo-1521537634581-0dced2fedc42?q=80&w=1200&auto=format&fit=crop',
+        isCover: false,
+        order: 2,
+      },
+    ];
+    await facilityHanoi.save();
   }
 
   let fSportHanoi = await FacilitySport.findOne({ facilityId: facilityHanoi._id, sportId: sportsMap.BADMINTON._id });
@@ -180,7 +286,195 @@ export async function seedDemo(uri = env.MONGODB_URI) {
     });
   }
 
-  // Danang Facility
+  // Hanoi Facility 2 - Cầu Giấy
+  let facilityCaugiay = await Facility.findOne({ name: 'CLB Cầu Lông Cầu Giấy Premium' });
+  if (!facilityCaugiay) {
+    facilityCaugiay = await Facility.create({
+      name: 'CLB Cầu Lông Cầu Giấy Premium',
+      description: 'Tổ hợp sân cầu lông cao cấp 100% thảm Yonex chuẩn BWF, trần cao 11m thoáng mát, đèn LED rọi chống chói, khu nghỉ ngơi và phòng tắm nóng lạnh tiện nghi.',
+      address: 'Số 35 Dịch Vọng Hậu, Phường Dịch Vọng Hậu, Quận Cầu Giấy, Hà Nội',
+      province: 'Hà Nội',
+      phoneNumber: '0902000003',
+      openTime: '05:30',
+      closeTime: '23:00',
+      weeklySchedule: createWeeklySchedule('05:30', '23:00'),
+      ownerId: ownerCaugiay._id,
+      status: 'PUBLISHED',
+      images: [
+        {
+          id: 'cg-img-1',
+          url: 'https://images.unsplash.com/photo-1544717305-2782549b5136?q=80&w=1200&auto=format&fit=crop',
+          isCover: true,
+          order: 0,
+        },
+        {
+          id: 'cg-img-2',
+          url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 1,
+        },
+        {
+          id: 'cg-img-3',
+          url: 'https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 2,
+        },
+      ],
+    });
+  }
+
+  let fSportCaugiay = await FacilitySport.findOne({ facilityId: facilityCaugiay._id, sportId: sportsMap.BADMINTON._id });
+  if (!fSportCaugiay) {
+    fSportCaugiay = await FacilitySport.create({
+      facilityId: facilityCaugiay._id,
+      sportId: sportsMap.BADMINTON._id,
+      slotStepMinutes: 30,
+      configVersion: 1,
+    });
+  }
+
+  // Hanoi Facility 3 - Hai Bà Trưng
+  let facilityHaibatrung = await Facility.findOne({ name: 'Nhà Thi Đấu Cầu Lông Bách Khoa Arena' });
+  if (!facilityHaibatrung) {
+    facilityHaibatrung = await Facility.create({
+      name: 'Nhà Thi Đấu Cầu Lông Bách Khoa Arena',
+      description: 'Tổ hợp nhà thi đấu cầu lông tại trung tâm Hai Bà Trưng. Thảm Enlio Pro tiêu chuẩn, sàn gỗ đệm chống chấn thương, quầy căng cước vợt và phục vụ đồ uống thể thao.',
+      address: 'Số 42 Tạ Quang Bửu, Phường Bách Khoa, Quận Hai Bà Trưng, Hà Nội',
+      province: 'Hà Nội',
+      phoneNumber: '0902000004',
+      openTime: '06:00',
+      closeTime: '22:30',
+      weeklySchedule: createWeeklySchedule('06:00', '22:30'),
+      ownerId: ownerHaibatrung._id,
+      status: 'PUBLISHED',
+      images: [
+        {
+          id: 'bk-img-1',
+          url: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?q=80&w=1200&auto=format&fit=crop',
+          isCover: true,
+          order: 0,
+        },
+        {
+          id: 'bk-img-2',
+          url: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 1,
+        },
+        {
+          id: 'bk-img-3',
+          url: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 2,
+        },
+      ],
+    });
+  }
+
+  let fSportHaibatrung = await FacilitySport.findOne({ facilityId: facilityHaibatrung._id, sportId: sportsMap.BADMINTON._id });
+  if (!fSportHaibatrung) {
+    fSportHaibatrung = await FacilitySport.create({
+      facilityId: facilityHaibatrung._id,
+      sportId: sportsMap.BADMINTON._id,
+      slotStepMinutes: 60,
+      configVersion: 1,
+    });
+  }
+
+  // HCM Facility 1 - Tân Bình
+  let facilitySaigon = await Facility.findOne({ name: 'Trung Tâm Cầu Lông Sài Gòn Star - Tân Bình' });
+  if (!facilitySaigon) {
+    facilitySaigon = await Facility.create({
+      name: 'Trung Tâm Cầu Lông Sài Gòn Star - Tân Bình',
+      description: 'Hệ thống sân cầu lông hiện đại bậc nhất khu vực Tân Bình - sân bay. Trang bị sàn gỗ kỹ thuật đệm mút cao cấp giảm chấn, trần cao 12m cực kỳ thông thoáng.',
+      address: 'Số 18A Hoàng Hoa Thám, Phường 12, Quận Tân Bình, TP. Hồ Chí Minh',
+      province: 'Hồ Chí Minh',
+      phoneNumber: '0902000005',
+      openTime: '05:00',
+      closeTime: '23:00',
+      weeklySchedule: createWeeklySchedule('05:00', '23:00'),
+      ownerId: ownerSaigon._id,
+      status: 'PUBLISHED',
+      images: [
+        {
+          id: 'sg-img-1',
+          url: 'https://images.unsplash.com/photo-1563299796-17596ed6b017?q=80&w=1200&auto=format&fit=crop',
+          isCover: true,
+          order: 0,
+        },
+        {
+          id: 'sg-img-2',
+          url: 'https://images.unsplash.com/photo-1521537634581-0dced2fedc42?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 1,
+        },
+        {
+          id: 'sg-img-3',
+          url: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 2,
+        },
+      ],
+    });
+  }
+
+  let fSportSaigon = await FacilitySport.findOne({ facilityId: facilitySaigon._id, sportId: sportsMap.BADMINTON._id });
+  if (!fSportSaigon) {
+    fSportSaigon = await FacilitySport.create({
+      facilityId: facilitySaigon._id,
+      sportId: sportsMap.BADMINTON._id,
+      slotStepMinutes: 60,
+      configVersion: 1,
+    });
+  }
+
+  // HCM Facility 2 - Thủ Đức
+  let facilityThuduc = await Facility.findOne({ name: 'CLB Cầu Lông Thủ Đức Badminton Center' });
+  if (!facilityThuduc) {
+    facilityThuduc = await Facility.create({
+      name: 'CLB Cầu Lông Thủ Đức Badminton Center',
+      description: 'Cụm sân cầu lông quy chuẩn gần Làng Đại Học và trung tâm Thủ Đức. Không gian trẻ trung năng động, bãi giữ xe rộng rãi, quầy phụ kiện và nước giải khát đa dạng.',
+      address: 'Số 26 Đường Số 9, Phường Linh Chiểu, TP. Thủ Đức, TP. Hồ Chí Minh',
+      province: 'Hồ Chí Minh',
+      phoneNumber: '0902000006',
+      openTime: '06:00',
+      closeTime: '22:00',
+      weeklySchedule: createWeeklySchedule('06:00', '22:00'),
+      ownerId: ownerThuduc._id,
+      status: 'PUBLISHED',
+      images: [
+        {
+          id: 'td-img-1',
+          url: 'https://images.unsplash.com/photo-1613918108466-292b78a8ef95?q=80&w=1200&auto=format&fit=crop',
+          isCover: true,
+          order: 0,
+        },
+        {
+          id: 'td-img-2',
+          url: 'https://images.unsplash.com/photo-1544717305-2782549b5136?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 1,
+        },
+        {
+          id: 'td-img-3',
+          url: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?q=80&w=1200&auto=format&fit=crop',
+          isCover: false,
+          order: 2,
+        },
+      ],
+    });
+  }
+
+  let fSportThuduc = await FacilitySport.findOne({ facilityId: facilityThuduc._id, sportId: sportsMap.BADMINTON._id });
+  if (!fSportThuduc) {
+    fSportThuduc = await FacilitySport.create({
+      facilityId: facilityThuduc._id,
+      sportId: sportsMap.BADMINTON._id,
+      slotStepMinutes: 30,
+      configVersion: 1,
+    });
+  }
+
+  // Danang Facility - Sơn Trà
   let facilityDanang = await Facility.findOne({ name: 'Sân Bóng Đá Sơn Trà' });
   if (!facilityDanang) {
     facilityDanang = await Facility.create({
@@ -191,13 +485,15 @@ export async function seedDemo(uri = env.MONGODB_URI) {
       phoneNumber: '0902000002',
       openTime: '06:00',
       closeTime: '23:00',
+      weeklySchedule: createWeeklySchedule('06:00', '23:00'),
       ownerId: ownerDanang._id,
       status: 'PUBLISHED',
       images: [
         {
           id: 'dn-img-1',
-          url: 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6',
+          url: 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?q=80&w=1200&auto=format&fit=crop',
           isCover: true,
+          order: 0,
         },
       ],
     });
@@ -213,57 +509,92 @@ export async function seedDemo(uri = env.MONGODB_URI) {
     });
   }
 
-  // 4. Courts
+  // 4. Courts Helper
+  const upsertCourtDoc = async ({
+    facilityId,
+    facilitySportId,
+    sportId,
+    name,
+    description,
+    pricePerHourVnd,
+    pricingRules,
+    isActive = true,
+  }) => {
+    let court = await Court.findOne({ facilityId, name });
+    if (!court) {
+      court = await Court.create({
+        facilityId,
+        facilitySportId,
+        sportId,
+        name,
+        description: description || '',
+        pricePerHourVnd,
+        priceVersion: 1,
+        pricingRules: pricingRules || [],
+        isActive,
+        bookingCoordinationVersion: 1,
+      });
+    } else {
+      let changed = false;
+      if (description && court.description !== description) {
+        court.description = description;
+        changed = true;
+      }
+      if (pricingRules && pricingRules.length > 0 && (!court.pricingRules || court.pricingRules.length === 0)) {
+        court.pricingRules = pricingRules;
+        changed = true;
+      }
+      if (changed) {
+        await court.save();
+      }
+    }
+    return court;
+  };
+
+  // 4.1. Facility Ba Đình Courts (Hà Nội - Owner Hanoi)
   const fSportHanoiId = fSportHanoi._id;
-  let courtHN1 = await Court.findOne({ facilityId: facilityHanoi._id, name: 'Sân 1' });
-  if (!courtHN1) {
-    courtHN1 = await Court.create({
-      facilityId: facilityHanoi._id,
-      facilitySportId: fSportHanoiId,
-      sportId: sportsMap.BADMINTON._id,
-      name: 'Sân 1',
-      pricePerHourVnd: 100000,
-      pricingRules: [
-        { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 100000 },
-        { dayType: 'WEEKDAY', startTime: '17:00', endTime: '18:00', pricePerHourVnd: 100000 },
-        { dayType: 'WEEKDAY', startTime: '18:00', endTime: '22:00', pricePerHourVnd: 150000 },
-        { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 180000 },
-      ],
-      isActive: true,
-    });
-  } else if (!courtHN1.pricingRules || courtHN1.pricingRules.length === 0) {
-    courtHN1.pricingRules = [
+  let courtHN1 = await upsertCourtDoc({
+    facilityId: facilityHanoi._id,
+    facilitySportId: fSportHanoiId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân 1',
+    description: 'Sân cầu lông thảm PVC tiêu chuẩn BWF số 1, đèn LED 500 Lux chống chói',
+    pricePerHourVnd: 100000,
+    pricingRules: [
       { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 100000 },
       { dayType: 'WEEKDAY', startTime: '17:00', endTime: '18:00', pricePerHourVnd: 100000 },
       { dayType: 'WEEKDAY', startTime: '18:00', endTime: '22:00', pricePerHourVnd: 150000 },
       { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 180000 },
-    ];
-    await courtHN1.save();
-  }
+    ],
+  });
 
-  let courtHN2 = await Court.findOne({ facilityId: facilityHanoi._id, name: 'Sân 2' });
-  if (!courtHN2) {
-    courtHN2 = await Court.create({
-      facilityId: facilityHanoi._id,
-      facilitySportId: fSportHanoiId,
-      sportId: sportsMap.BADMINTON._id,
-      name: 'Sân 2',
-      pricePerHourVnd: 120000,
-      pricingRules: [
-        { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 110000 },
-        { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:00', pricePerHourVnd: 160000 },
-        { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 190000 },
-      ],
-      isActive: true,
-    });
-  } else if (!courtHN2.pricingRules || courtHN2.pricingRules.length === 0) {
-    courtHN2.pricingRules = [
+  let courtHN2 = await upsertCourtDoc({
+    facilityId: facilityHanoi._id,
+    facilitySportId: fSportHanoiId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân 2',
+    description: 'Sân cầu lông thảm PVC tiêu chuẩn BWF số 2, khoảng cách biên rộng thoáng an toàn',
+    pricePerHourVnd: 120000,
+    pricingRules: [
       { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 110000 },
       { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:00', pricePerHourVnd: 160000 },
       { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 190000 },
-    ];
-    await courtHN2.save();
-  }
+    ],
+  });
+
+  let courtHN3 = await upsertCourtDoc({
+    facilityId: facilityHanoi._id,
+    facilitySportId: fSportHanoiId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân 3 (Sân VIP)',
+    description: 'Sân thảm Yonex dày 5mm tiêu chuẩn thi đấu quốc tế, khán đài mini và điều hòa',
+    pricePerHourVnd: 140000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 130000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:00', pricePerHourVnd: 170000 },
+      { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 200000 },
+    ],
+  });
 
   // Hanoi Pickleball Courts (slotStepMinutes: 60)
   const fSportHanoiPKId = fSportHanoiPickleball._id;
@@ -301,6 +632,197 @@ export async function seedDemo(uri = env.MONGODB_URI) {
     });
   }
 
+  // 4.2. Facility Cầu Giấy Courts (Hà Nội - Owner Cầu Giấy)
+  const fSportCaugiayId = fSportCaugiay._id;
+  let courtCG1 = await upsertCourtDoc({
+    facilityId: facilityCaugiay._id,
+    facilitySportId: fSportCaugiayId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân CG-01 (Thảm Yonex A)',
+    description: 'Sân thảm Yonex vân cát xanh lá, bám giày cực tốt, đèn chống chói 500 Lux',
+    pricePerHourVnd: 110000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '05:30', endTime: '17:00', pricePerHourVnd: 100000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '23:00', pricePerHourVnd: 160000 },
+      { dayType: 'WEEKEND', startTime: '05:30', endTime: '23:00', pricePerHourVnd: 180000 },
+    ],
+  });
+
+  let courtCG2 = await upsertCourtDoc({
+    facilityId: facilityCaugiay._id,
+    facilitySportId: fSportCaugiayId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân CG-02 (Thảm Yonex B)',
+    description: 'Sân thảm Yonex chất lượng cao, trang bị quạt gió hướng âm và ghế nghỉ vận động viên',
+    pricePerHourVnd: 110000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '05:30', endTime: '17:00', pricePerHourVnd: 100000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '23:00', pricePerHourVnd: 160000 },
+      { dayType: 'WEEKEND', startTime: '05:30', endTime: '23:00', pricePerHourVnd: 180000 },
+    ],
+  });
+
+  let courtCG3 = await upsertCourtDoc({
+    facilityId: facilityCaugiay._id,
+    facilitySportId: fSportCaugiayId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân CG-VIP (Sân Thi Đấu)',
+    description: 'Sân trung tâm không gian rộng rãi, camera góc rộng ghi hình trận đấu và ghế bành VIP',
+    pricePerHourVnd: 160000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '05:30', endTime: '17:00', pricePerHourVnd: 140000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '23:00', pricePerHourVnd: 200000 },
+      { dayType: 'WEEKEND', startTime: '05:30', endTime: '23:00', pricePerHourVnd: 230000 },
+    ],
+  });
+
+  // 4.3. Facility Bách Khoa Courts (Hai Bà Trưng - Owner Hai Bà Trưng)
+  const fSportHaibatrungId = fSportHaibatrung._id;
+  let courtBK1 = await upsertCourtDoc({
+    facilityId: facilityHaibatrung._id,
+    facilitySportId: fSportHaibatrungId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân BK-01 (Thảm Enlio Pro A)',
+    description: 'Sân thảm Enlio Pro vân đá xanh biển, đàn hồi cao, đường kẻ biên sắc nét',
+    pricePerHourVnd: 120000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 100000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:30', pricePerHourVnd: 150000 },
+      { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:30', pricePerHourVnd: 180000 },
+    ],
+  });
+
+  let courtBK2 = await upsertCourtDoc({
+    facilityId: facilityHaibatrung._id,
+    facilitySportId: fSportHaibatrungId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân BK-02 (Thảm Enlio Pro B)',
+    description: 'Sân tiêu chuẩn thi đấu phong trào, ánh sáng bố trí dọc biên không gây lóa mắt khi đập cầu',
+    pricePerHourVnd: 120000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 100000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:30', pricePerHourVnd: 150000 },
+      { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:30', pricePerHourVnd: 180000 },
+    ],
+  });
+
+  let courtBK3 = await upsertCourtDoc({
+    facilityId: facilityHaibatrung._id,
+    facilitySportId: fSportHaibatrungId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân BK-03 (Sân Khán Đài)',
+    description: 'Sân trung tâm có khán đài 60 chỗ ngồi, bảng điểm lật tay và hệ thống âm thanh thông báo',
+    pricePerHourVnd: 140000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 120000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:30', pricePerHourVnd: 180000 },
+      { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:30', pricePerHourVnd: 210000 },
+    ],
+  });
+
+  // 4.4. Facility Sài Gòn Star Courts (Tân Bình - Owner Sài Gòn)
+  const fSportSaigonId = fSportSaigon._id;
+  let courtSG1 = await upsertCourtDoc({
+    facilityId: facilitySaigon._id,
+    facilitySportId: fSportSaigonId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân SG-A1 (Sàn Gỗ Giảm Chấn A)',
+    description: 'Sàn gỗ Maple tự nhiên đàn hồi cao cấp, bảo vệ đầu gối và cổ chân tối đa',
+    pricePerHourVnd: 130000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '05:00', endTime: '16:00', pricePerHourVnd: 110000 },
+      { dayType: 'WEEKDAY', startTime: '16:00', endTime: '23:00', pricePerHourVnd: 170000 },
+      { dayType: 'WEEKEND', startTime: '05:00', endTime: '23:00', pricePerHourVnd: 200000 },
+    ],
+  });
+
+  let courtSG2 = await upsertCourtDoc({
+    facilityId: facilitySaigon._id,
+    facilitySportId: fSportSaigonId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân SG-A2 (Sàn Gỗ Giảm Chấn B)',
+    description: 'Sàn gỗ công nghệ mới, khoảng cách an toàn giữa các sân rộng 2m tránh va chạm',
+    pricePerHourVnd: 130000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '05:00', endTime: '16:00', pricePerHourVnd: 110000 },
+      { dayType: 'WEEKDAY', startTime: '16:00', endTime: '23:00', pricePerHourVnd: 170000 },
+      { dayType: 'WEEKEND', startTime: '05:00', endTime: '23:00', pricePerHourVnd: 200000 },
+    ],
+  });
+
+  let courtSG3 = await upsertCourtDoc({
+    facilityId: facilitySaigon._id,
+    facilitySportId: fSportSaigonId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân SG-B1 (Thảm Taraflex Quốc Tế 1)',
+    description: 'Thảm Taraflex chuyên dụng cho các giải đấu quốc tế, độ bám sân và nảy cầu tiêu chuẩn',
+    pricePerHourVnd: 140000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '05:00', endTime: '16:00', pricePerHourVnd: 120000 },
+      { dayType: 'WEEKDAY', startTime: '16:00', endTime: '23:00', pricePerHourVnd: 180000 },
+      { dayType: 'WEEKEND', startTime: '05:00', endTime: '23:00', pricePerHourVnd: 210000 },
+    ],
+  });
+
+  let courtSG4 = await upsertCourtDoc({
+    facilityId: facilitySaigon._id,
+    facilitySportId: fSportSaigonId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân SG-B2 (Thảm Taraflex Quốc Tế 2)',
+    description: 'Thảm thi đấu Taraflex chính hãng, hệ thống đèn chiếu sáng cạnh sân chống mỏi mắt',
+    pricePerHourVnd: 140000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '05:00', endTime: '16:00', pricePerHourVnd: 120000 },
+      { dayType: 'WEEKDAY', startTime: '16:00', endTime: '23:00', pricePerHourVnd: 180000 },
+      { dayType: 'WEEKEND', startTime: '05:00', endTime: '23:00', pricePerHourVnd: 210000 },
+    ],
+  });
+
+  // 4.5. Facility Thủ Đức Courts (Thủ Đức - Owner Thủ Đức)
+  const fSportThuducId = fSportThuduc._id;
+  let courtTD1 = await upsertCourtDoc({
+    facilityId: facilityThuduc._id,
+    facilitySportId: fSportThuducId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân TĐ-01 (Thảm Alite Xanh A)',
+    description: 'Thảm đúc Alite độ bám tuyệt vời, lưới chuẩn thi đấu, quạt làm mát công suất lớn',
+    pricePerHourVnd: 100000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 90000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:00', pricePerHourVnd: 140000 },
+      { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 170000 },
+    ],
+  });
+
+  let courtTD2 = await upsertCourtDoc({
+    facilityId: facilityThuduc._id,
+    facilitySportId: fSportThuducId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân TĐ-02 (Thảm Alite Xanh B)',
+    description: 'Sân thảm Alite đạt chuẩn tập luyện học sinh, sinh viên và câu lạc bộ cuối tuần',
+    pricePerHourVnd: 100000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 90000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:00', pricePerHourVnd: 140000 },
+      { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 170000 },
+    ],
+  });
+
+  let courtTD3 = await upsertCourtDoc({
+    facilityId: facilityThuduc._id,
+    facilitySportId: fSportThuducId,
+    sportId: sportsMap.BADMINTON._id,
+    name: 'Sân TĐ-VIP (Máy Bắn Cầu & Ghế VIP)',
+    description: 'Sân VIP có kèm máy bắn cầu tự động hỗ trợ rèn luyện kỹ thuật cá nhân hoặc đánh đôi',
+    pricePerHourVnd: 160000,
+    pricingRules: [
+      { dayType: 'WEEKDAY', startTime: '06:00', endTime: '17:00', pricePerHourVnd: 140000 },
+      { dayType: 'WEEKDAY', startTime: '17:00', endTime: '22:00', pricePerHourVnd: 200000 },
+      { dayType: 'WEEKEND', startTime: '06:00', endTime: '22:00', pricePerHourVnd: 230000 },
+    ],
+  });
+
+  // 4.6. Danang Football Court
   const fSportDanangId = fSportDanang._id;
   let courtDN1 = await Court.findOne({ facilityId: facilityDanang._id, name: 'Sân 7A' });
   if (!courtDN1) {
@@ -910,30 +1432,58 @@ export async function seedDemo(uri = env.MONGODB_URI) {
   }
 
   // 8. Action Logs
-  const logCount = await ActionLog.countDocuments({ action: 'UNLOCK_FACILITY', targetId: facilityHanoi._id });
-  if (logCount === 0) {
-    await ActionLog.create({
-      actorId: admin._id,
-      actorRole: 'ADMIN',
-      targetType: 'FACILITY',
-      targetId: facilityHanoi._id,
-      action: 'UNLOCK_FACILITY',
-      reason: 'Khởi tạo và mở hoạt động cơ sở demo',
-      previousState: null,
-      newState: { status: 'PUBLISHED' },
-    });
+  const facilitiesToUnlock = [
+    facilityHanoi,
+    facilityDanang,
+    facilityCaugiay,
+    facilityHaibatrung,
+    facilitySaigon,
+    facilityThuduc,
+  ];
+  for (const fac of facilitiesToUnlock) {
+    const logCount = await ActionLog.countDocuments({ action: 'UNLOCK_FACILITY', targetId: fac._id });
+    if (logCount === 0) {
+      await ActionLog.create({
+        actorId: admin._id,
+        actorRole: 'ADMIN',
+        targetType: 'FACILITY',
+        targetId: fac._id,
+        action: 'UNLOCK_FACILITY',
+        reason: 'Khởi tạo và mở hoạt động cơ sở demo',
+        previousState: null,
+        newState: { status: 'PUBLISHED' },
+      });
+    }
   }
 
-  logger.info('[SeedDemo] Demo data seeded successfully.');
+  // Count total badminton courts
+  const badmintonCourtCount = await Court.countDocuments({ sportId: sportsMap.BADMINTON._id });
+
+  logger.info(`[SeedDemo] Demo data seeded successfully. Badminton courts: ${badmintonCourtCount}`);
 
   return {
     success: true,
     users: {
       admin: admin.email,
-      owners: [ownerHanoi.email, ownerDanang.email],
+      owners: [
+        ownerHanoi.email,
+        ownerDanang.email,
+        ownerCaugiay.email,
+        ownerHaibatrung.email,
+        ownerSaigon.email,
+        ownerThuduc.email,
+      ],
       customers: [customerAn.email, customerBinh.email],
     },
-    facilities: [facilityHanoi.name, facilityDanang.name],
+    facilities: [
+      facilityHanoi.name,
+      facilityDanang.name,
+      facilityCaugiay.name,
+      facilityHaibatrung.name,
+      facilitySaigon.name,
+      facilityThuduc.name,
+    ],
+    badmintonCourtsCount: badmintonCourtCount,
     sampleBookings: [
       'DEMO-COMPLETED-01',
       'DEMO-NOSHOW-01',

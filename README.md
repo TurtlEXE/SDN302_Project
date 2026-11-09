@@ -203,8 +203,12 @@ Tất cả các tài khoản demo dưới đây đều sử dụng mật khẩu 
 | Vai trò | Email đăng nhập | Mật khẩu | Mục đích sử dụng / Mô tả kịch bản |
 | :--- | :--- | :--- | :--- |
 | **Quản trị viên (Admin)** | `admin@sportbooking.local` | `Password123!` | Quản trị toàn hệ thống, cấp Owner, duyệt hồ sơ hoàn tiền, xem audit log, giám sát outbox. |
-| **Chủ sân (Owner Hà Nội)** | `owner.hanoi@sportbooking.local` | `Password123!` | Quản lý Sân Cầu Lông Ba Đình, cấu hình giá, đặt sân hộ, xác nhận phục vụ (`COMPLETED`), xem dashboard doanh thu. |
-| **Chủ sân (Owner Đà Nẵng)** | `owner.danang@sportbooking.local` | `Password123!` | Quản lý Sân Bóng Đá Sơn Trà, kiểm thử cô lập đa người thuê (Tenant Isolation). |
+| **Chủ sân (Owner Hà Nội - Ba Đình)** | `owner.hanoi@sportbooking.local` | `Password123!` | Quản lý Sân Cầu Lông Ba Đình (3 sân cầu lông + 2 pickleball), cấu hình giá, đặt sân hộ, xác nhận phục vụ (`COMPLETED`), xem dashboard doanh thu. |
+| **Chủ sân (Owner Hà Nội - Cầu Giấy)** | `owner.caugiay@sportbooking.local` | `Password123!` | Quản lý CLB Cầu Lông Cầu Giấy Premium (3 sân thảm Yonex, slotStep 30p, giá linh hoạt theo giờ). |
+| **Chủ sân (Owner Hà Nội - Bách Khoa)** | `owner.haibatrung@sportbooking.local` | `Password123!` | Quản lý Nhà Thi Đấu Cầu Lông Bách Khoa Arena (3 sân thảm Enlio Pro, slotStep 60p, sân khán đài). |
+| **Chủ sân (Owner Sài Gòn - Tân Bình)** | `owner.saigon@sportbooking.local` | `Password123!` | Quản lý Trung Tâm Cầu Lông Sài Gòn Star - Tân Bình (4 sân sàn gỗ đệm cao su & thảm Taraflex, TP.HCM). |
+| **Chủ sân (Owner Sài Gòn - Thủ Đức)** | `owner.thuduc@sportbooking.local` | `Password123!` | Quản lý CLB Cầu Lông Thủ Đức Badminton Center (3 sân thảm Alite & sân máy bắn cầu VIP, TP.HCM). |
+| **Chủ sân (Owner Đà Nẵng - Sơn Trà)** | `owner.danang@sportbooking.local` | `Password123!` | Quản lý Sân Bóng Đá Sơn Trà, kiểm thử cô lập đa người thuê (Tenant Isolation). |
 | **Khách hàng 1 (Customer An)**| `customer.an@sportbooking.local` | `Password123!` | Đặt sân trực tuyến, thanh toán VNPay, xem lịch sử đặt sân, hủy yêu cầu giữ chỗ. |
 | **Khách hàng 2 (Customer Bình)**| `customer.binh@sportbooking.local` | `Password123!` | Kiểm thử xung đột đồng thời khi đặt cùng một khung giờ đã có người giữ chỗ. |
 

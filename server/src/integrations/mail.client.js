@@ -89,7 +89,7 @@ class MailClient {
 
     try {
       const info = await this.transporter.sendMail(mailOptions);
-      if (this.config.isTestMode && info.message) {
+      if ((this.isTestMode || this.config.isTestMode) && info.message) {
         const parsed = JSON.parse(info.message);
         this.sentEmails.push({
           to: mailOptions.to,

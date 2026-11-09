@@ -12,11 +12,13 @@ describe('Email Outbox Worker & Concurrency Lease (Integration)', () => {
   const TEST_RECIPIENT_BASE = 'worker-test';
 
   before(async () => {
+    mailClient.setTestMode(true);
     await connectDB(env.MONGODB_TEST_URI);
   });
 
   after(async () => {
     stopSendEmailsJob();
+    mailClient.setTestMode(false);
     await disconnectDB();
   });
 
